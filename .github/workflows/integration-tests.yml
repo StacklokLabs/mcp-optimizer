@@ -1,0 +1,105 @@
+name: Integration Tests
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  integration-tests:
+    name: ToolHive Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Build mcp-optimizer Docker image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          cache-from: type=gha
+          tags: mcp-optimizer:latest
+
+      - name: Install ToolHive
+        uses: StacklokLabs/toolhive-actions/install@v0
+
+      - name: Run ToolHive server
+        run: |
+          thv serve --host 0.0.0.0 --port 9090 &
+          echo "Waiting for ToolHive server to start..."
+          sleep 5
+          echo "Checking ToolHive API is accessible..."
+          curl -v http://localhost:9090/api/v1beta/version || echo "Failed to connect to ToolHive API"
+          echo "Checking from Docker bridge IP..."
+          curl -v http://172.17.0.1:9090/api/v1beta/version || echo "Failed to connect via Docker bridge IP"
+
+      - name: Install time MCP server
+        run: thv run time --host 0.0.0.0
+
+      - name: Install mcp-optimizer server
+        run: thv run mcp-optimizer:latest --transport streamable-http --proxy-port 8080 --env TOOLHIVE_HOST=172.17.0.1 --env TOOLHIVE_PORT=9090
+
+      - name: Check server status
+        run: |
+          echo "Waiting for servers to start..."
+          sleep 5
+          echo "=== ToolHive API version ==="
+          curl -v http://localhost:9090/api/v1beta/version || true
+          echo "=== ToolHive workload status ==="
+          thv ls
+          echo "=== Docker containers ==="
+          docker ps
+          echo "=== Testing connectivity to port 8080 ==="
+          curl -v http://localhost:8080/mcp || true
+
+      - name: Wait for mcp-optimizer to be ready
+        run: |
+          echo "Waiting for mcp-optimizer to be ready..."
+          MAX_ATTEMPTS=180  # 3 minutes with 1 second intervals
+          ATTEMPT=0
+          READY=false
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            if docker logs mcp-optimizer 2>&1 | grep -q "Uvicorn running on "; then
+              echo "mcp-optimizer is ready!"
+              READY=true
+              break
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Waiting... (attempt $ATTEMPT/$MAX_ATTEMPTS)"
+            sleep 1
+          done
+
+          if [ "$READY" = false ]; then
+            echo "ERROR: mcp-optimizer did not become ready within 3 minutes"
+            echo "=== mcp-optimizer logs ==="
+            docker logs mcp-optimizer 2>&1 || true
+            exit 1
+          fi
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@2ddd2b9cb38ad8efd50337e8ab201519a34c9f24 # v7.1.1
+        with:
+          enable-cache: true
+          python-version: '3.13'
+
+      - name: Run integration tests
+        env:
+          MCP_OPTIMIZER_URL: http://localhost:8080/mcp
+        run: uv run tests/integration_test.py
+
+      - name: Capture mcp-optimizer container logs
+        if: always()
+        run: |
+          echo "=== mcp-optimizer container logs ==="
+          docker logs mcp-optimizer 2>&1 || true
+          echo "=== time container logs ==="
+          docker logs time 2>&1 || true

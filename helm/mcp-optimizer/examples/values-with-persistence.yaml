@@ -1,0 +1,48 @@
+# Example values file for MCP-Optimizer with persistence enabled
+# This configuration is suitable for production use
+
+mcpserver:
+  name: mcp-optimizer
+  namespace: toolhive-system
+  
+  image:
+    repository: ghcr.io/stacklok/mcp-optimizer
+    tag: "0.1.0"
+  
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+  
+  env:
+    - name: RUNTIME_MODE
+      value: "k8s"
+    - name: K8S_ALL_NAMESPACES
+      value: "true"
+    - name: MCP_PORT
+      value: "9900"
+    - name: LOG_LEVEL
+      value: "INFO"
+    - name: WORKLOAD_POLLING_INTERVAL
+      value: "60"
+    - name: REGISTRY_POLLING_INTERVAL
+      value: "300"
+
+# Enable persistence for the SQLite database
+persistence:
+  enabled: true
+  size: 5Gi
+  accessMode: ReadWriteOnce
+  storageClass: "standard"  # Change to your storage class
+
+# Service account with RBAC permissions
+serviceAccount:
+  create: true
+  annotations: {}
+
+rbac:
+  create: true
+

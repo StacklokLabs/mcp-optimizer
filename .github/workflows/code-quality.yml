@@ -1,0 +1,56 @@
+name: Code Quality
+description: Run code quality checks including linting, type checking, tests, and security scanning.
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@2ddd2b9cb38ad8efd50337e8ab201519a34c9f24 # v7.1.1
+        with:
+          enable-cache: true
+          python-version: '3.13'
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          version: 3.44.1
+
+      - name: Install Dependencies
+        run: task install
+
+      - name: Run Linting
+        run: task lint
+      
+      - name: Run Type Checking
+        run: task typecheck
+      
+      - name: Run Tests
+        run: task test
+
+      - name: Run Security Scanning
+        run: task security
+        continue-on-error: true  # Don't fail the build on security issues, but report them
+
+      - name: Generate SBOM
+        run: task sbom
+
+      - name: Upload Security Reports as Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()  # Upload even if security scan fails
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            pip-audit-report.json
+            sbom.json
+          retention-days: 30

@@ -1,0 +1,17 @@
+apiVersion: v2
+name: mcp-optimizer
+description: A Helm chart for deploying MCP-Optimizer MCP Server in Kubernetes
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - mcp
+  - mcp-optimizer
+  - toolhive
+  - kubernetes
+home: https://github.com/StacklokLabs/mcp-optimizer
+sources:
+  - https://github.com/StacklokLabs/mcp-optimizer
+maintainers:
+  - name: MCP-Optimizer Team
+

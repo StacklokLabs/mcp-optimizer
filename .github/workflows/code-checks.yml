@@ -1,0 +1,21 @@
+# These set of workflows run on every pull request
+name: Code Checks
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  code_quality:
+    name: Code Quality
+    uses: ./.github/workflows/code-quality.yml
+  image_build:
+    name: Build Docker Image
+    uses: ./.github/workflows/image-build.yml
+    needs: code_quality
+  # Will use the cached layers from image_build job
+  integration_tests:
+    name: Integration Tests
+    uses: ./.github/workflows/integration-tests.yml
+    needs: image_build

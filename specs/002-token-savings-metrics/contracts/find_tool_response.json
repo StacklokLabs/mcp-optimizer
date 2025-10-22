@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FindToolResponse",
+  "description": "Extended response from find_tool endpoint with token savings metrics",
+  "type": "object",
+  "required": ["tools", "token_metrics"],
+  "properties": {
+    "tools": {
+      "type": "array",
+      "description": "List of matching MCP tools",
+      "items": {
+        "$ref": "#/definitions/McpTool"
+      }
+    },
+    "token_metrics": {
+      "$ref": "#/definitions/TokenMetrics"
+    }
+  },
+  "definitions": {
+    "McpTool": {
+      "type": "object",
+      "description": "MCP Tool specification (from MCP protocol)",
+      "required": ["name", "inputSchema"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Tool name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Tool description"
+        },
+        "inputSchema": {
+          "type": "object",
+          "description": "JSON Schema for tool input parameters"
+        }
+      },
+      "additionalProperties": true
+    },
+    "TokenMetrics": {
+      "type": "object",
+      "description": "Token savings metrics showing efficiency gains from tool filtering",
+      "required": [
+        "baseline_tokens",
+        "returned_tokens",
+        "tokens_saved",
+        "savings_percentage"
+      ],
+      "properties": {
+        "baseline_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total tokens for all tools from running MCP servers (before filtering)"
+        },
+        "returned_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total tokens for the filtered/returned tools"
+        },
+        "tokens_saved": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of tokens saved by filtering (baseline_tokens - returned_tokens)"
+        },
+        "savings_percentage": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 100.0,
+          "description": "Percentage of tokens saved ((tokens_saved / baseline_tokens) * 100)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "examples": [
+    {
+      "tools": [
+        {
+          "name": "fetch",
+          "description": "Fetch a URL and return its contents",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "URL to fetch"
+              }
+            },
+            "required": ["url"]
+          }
+        }
+      ],
+      "token_metrics": {
+        "baseline_tokens": 15000,
+        "returned_tokens": 500,
+        "tokens_saved": 14500,
+        "savings_percentage": 96.67
+      }
+    },
+    {
+      "tools": [],
+      "token_metrics": {
+        "baseline_tokens": 0,
+        "returned_tokens": 0,
+        "tokens_saved": 0,
+        "savings_percentage": 0.0
+      }
+    }
+  ]
+}

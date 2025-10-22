@@ -1,0 +1,43 @@
+# Example values file for MCP-Optimizer with group filtering
+# This limits mcp-optimizer to only discover MCP servers in specific groups
+
+mcpserver:
+  name: mcp-optimizer
+  namespace: toolhive-system
+  
+  image:
+    repository: ghcr.io/your-org/mcp-optimizer
+    tag: "0.1.0"
+  
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+
+# Restrict to specific groups
+groupFiltering:
+  allowedGroups:
+    - "development"
+    - "staging"
+    - "production"
+
+# Workload filtering
+workloadFiltering:
+  skippedWorkloads:
+    - "inspector"
+    - "mcp-optimizer"
+    - "internal-tools"
+
+persistence:
+  enabled: true
+  size: 2Gi
+
+serviceAccount:
+  create: true
+
+rbac:
+  create: true
+

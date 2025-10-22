@@ -1,0 +1,17 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "mcp-optimizer.fullname" . }}-reader-binding
+  labels:
+    {{- include "mcp-optimizer.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "mcp-optimizer.serviceAccountName" . }}
+    namespace: {{ .Values.mcpserver.namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "mcp-optimizer.fullname" . }}-reader
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+

@@ -1,0 +1,66 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }} -n {{ .Values.mcpserver.namespace }}
+  $ helm get all {{ .Release.Name }} -n {{ .Values.mcpserver.namespace }}
+
+MCP-Optimizer has been deployed as an MCPServer resource in the {{ .Values.mcpserver.namespace }} namespace.
+
+The MCPServer resource will be managed by the ToolHive operator, which will create:
+- A Deployment for the mcp-optimizer container
+- A Service for the MCP server
+- Additional resources as configured
+
+To check the status of the MCPServer:
+
+  $ kubectl get mcpserver {{ .Values.mcpserver.name }} -n {{ .Values.mcpserver.namespace }}
+
+To view the mcp-optimizer logs:
+
+  $ kubectl logs -l toolhive.stacklok.dev/mcpserver={{ .Values.mcpserver.name }} -n {{ .Values.mcpserver.namespace }}
+
+{{- if .Values.serviceAccount.create }}
+
+A ServiceAccount has been created with the following permissions:
+- Read access to MCPServer CRDs across all namespaces
+
+This allows mcp-optimizer to discover and catalog MCP servers in your cluster.
+{{- end }}
+
+{{- if .Values.persistence.enabled }}
+
+A PersistentVolumeClaim has been created for the SQLite database:
+- Name: {{ include "mcp-optimizer.fullname" . }}-data
+- Size: {{ .Values.persistence.size }}
+- Access Mode: {{ .Values.persistence.accessMode }}
+
+{{- else }}
+
+⚠️  WARNING: Persistence is not enabled. The SQLite database will be stored in an emptyDir volume.
+   Data will be lost if the pod is deleted or restarted.
+   
+   To enable persistence, set persistence.enabled=true in your values.yaml
+{{- end }}
+
+{{- if eq .Values.database.type "postgresql" }}
+
+PostgreSQL database configuration detected. Ensure that:
+1. The PostgreSQL server is accessible from the cluster
+2. The database and user have been created
+3. The password secret exists: {{ .Values.database.postgresql.passwordSecretName }}
+
+{{- end }}
+
+Configuration:
+- Runtime Mode: k8s (Kubernetes mode)
+- Namespace Scope: All Namespaces
+- MCP Port: {{ .Values.mcpserver.port }}
+- Image: {{ include "mcp-optimizer.image" . }}
+
+For more information, visit:
+- MCP-Optimizer Documentation: https://github.com/your-org/mcp-optimizer
+- ToolHive Documentation: https://github.com/stacklok/toolhive
+

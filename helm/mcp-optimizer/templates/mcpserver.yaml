@@ -1,0 +1,63 @@
+apiVersion: toolhive.stacklok.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: {{ .Values.mcpserver.name }}
+  namespace: {{ .Values.mcpserver.namespace }}
+  labels:
+    {{- include "mcp-optimizer.labels" . | nindent 4 }}
+    {{- with .Values.mcpserver.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.mcpserver.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  # Container image
+  image: {{ include "mcp-optimizer.image" . }}
+  
+  # Transport protocol (mcp-optimizer only supports streamable-http)
+  transport: {{ .Values.mcpserver.transport }}
+  
+  # Proxy mode (hard-coded to streamable-http as mcp-optimizer doesn't support stdio)
+  proxyMode: streamable-http
+  
+  # Port configuration
+  port: {{ .Values.mcpserver.port }}
+  {{- if .Values.mcpserver.targetPort }}
+  targetPort: {{ .Values.mcpserver.targetPort }}
+  {{- end }}
+  
+  # Service account for Kubernetes API access
+  serviceAccount: {{ include "mcp-optimizer.serviceAccountName" . }}
+  
+  {{- if not .Values.mcpserver.podTemplateSpec }}
+  # Environment variables (only used when not using podTemplateSpec)
+  env:
+    {{- range .Values.mcpserver.env }}
+    - name: {{ .name }}
+      value: {{ .value | quote }}
+    {{- end }}
+    # Add database URLs
+    - name: ASYNC_DB_URL
+      value: {{ include "mcp-optimizer.asyncDbUrl" . | quote }}
+    - name: DB_URL
+      value: {{ include "mcp-optimizer.dbUrl" . | quote }}
+    {{- if .Values.groupFiltering }}
+    {{- if .Values.groupFiltering.allowedGroups }}
+    - name: ALLOWED_GROUPS
+      value: {{ join "," .Values.groupFiltering.allowedGroups | quote }}
+    {{- end }}
+    {{- end }}
+  
+  # Resource limits and requests (only used when not using podTemplateSpec)
+  resources:
+    {{- toYaml .Values.mcpserver.resources | nindent 4 }}
+  {{- end }}
+  
+  # Pod template spec for advanced customization
+  {{- with .Values.mcpserver.podTemplateSpec }}
+  podTemplateSpec:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+

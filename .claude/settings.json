@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(task typecheck)",
+      "Bash(task lint)",
+      "Bash(task format)",
+      "Bash(task test)",
+      "Bash(.specify/scripts/bash/check-prerequisites.sh:*)",
+      "Bash(.specify/scripts/bash/common.sh:*)",
+      "Bash(.specify/scripts/bash/create-new-feature.sh:*)",
+      "Bash(.specify/scripts/bash/setup-plan.sh:*)",
+      "Bash(.specify/scripts/bash/update-agent-context.sh:*)"
+    ],
+    "deny": []
+  }
+}

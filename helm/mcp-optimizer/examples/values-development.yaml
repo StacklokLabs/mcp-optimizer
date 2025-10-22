@@ -1,0 +1,59 @@
+# Example values file for MCP-Optimizer in development environment
+# This configuration is optimized for local development and testing
+
+mcpserver:
+  name: mcp-optimizer-dev
+  namespace: default
+  
+  image:
+    repository: ghcr.io/stacklok/mcp-optimizer
+    tag: "latest"
+  
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+  
+  env:
+    - name: RUNTIME_MODE
+      value: "k8s"
+    - name: K8S_ALL_NAMESPACES
+      value: "true"
+    - name: MCP_PORT
+      value: "9900"
+    - name: LOG_LEVEL
+      value: "DEBUG"  # Enable debug logging for development
+    - name: WORKLOAD_POLLING_INTERVAL
+      value: "30"  # More frequent polling in dev
+    - name: REGISTRY_POLLING_INTERVAL
+      value: "120"
+
+# No persistence in development
+persistence:
+  enabled: false
+
+workloadFiltering:
+  skippedWorkloads:
+    - "inspector"
+
+serviceAccount:
+  create: true
+
+rbac:
+  create: true
+
+# Note: To control imagePullPolicy for development (e.g., Always pull latest),
+# you need to use podTemplateSpec. Example:
+#
+# mcpserver:
+#   podTemplateSpec:
+#     spec:
+#       containers:
+#         - name: mcp
+#           imagePullPolicy: Always
+#           # You'll also need to include env, resources, volumeMounts, etc.
+#           # See values.yaml for the complete podTemplateSpec structure
+

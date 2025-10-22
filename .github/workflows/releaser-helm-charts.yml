@@ -1,0 +1,89 @@
+name: Publish Helm Charts
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  release-helm-charts:
+    name: Release Helm Charts
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@cae68fefc6b5f367a0275617c9f83181ba54714f # v1.7.0
+        with:
+          config: cr.yaml
+          charts_dir: helm
+          mark_as_latest: false
+          skip_existing: true
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+
+      - name: Publish and Sign OCI Charts
+        run: |
+          # Check if chart packages directory exists and contains files
+          if [ ! -d .cr-release-packages ]; then
+            echo "No charts were released (no .cr-release-packages directory found)"
+            exit 0
+          fi
+          
+          chart_count=$(find .cr-release-packages -name '*.tgz' -type f | wc -l)
+          if [ "$chart_count" -eq 0 ]; then
+            echo "No charts were released (no .tgz files found)"
+            exit 0
+          fi
+          
+          echo "Publishing and signing $chart_count chart(s)..."
+          
+          # Lowercase repository name for OCI registry (required)
+          REPO_LOWER=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          
+          # Use modern command substitution and handle filenames safely
+          find .cr-release-packages -name '*.tgz' -type f -print0 | while IFS= read -r -d '' chart; do
+            echo "Processing chart: $chart"
+            
+            # Push chart and capture output
+            helm push "$chart" oci://ghcr.io/${REPO_LOWER} |& tee helm-push-output.log
+            
+            # Extract chart name and digest
+            file_name="${chart##*/}"
+            chart_name="${file_name%-*}"
+            digest=$(awk -F "[, ]+" '/Digest/{print $NF}' < helm-push-output.log)
+            
+            if [ -z "$digest" ]; then
+              echo "Error: Could not extract digest for $chart"
+              exit 1
+            fi
+            
+            # Sign the chart
+            echo "Signing chart: ghcr.io/${REPO_LOWER}/${chart_name}@${digest}"
+            cosign sign -y "ghcr.io/${REPO_LOWER}/${chart_name}@${digest}"
+          done
+        env:
+          COSIGN_EXPERIMENTAL: 1
+

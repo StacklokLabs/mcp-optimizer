@@ -1,0 +1,204 @@
+# Default values for mcp-optimizer
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# MCP-Optimizer MCPServer configuration
+mcpserver:
+  # Name of the MCPServer resource
+  name: mcp-optimizer
+  
+  # Namespace where the MCPServer will be deployed
+  namespace: toolhive-system
+  
+  # Container image configuration
+  image:
+    # Container registry and image name
+    repository: ghcr.io/stacklok/mcp-optimizer
+    # Image tag (defaults to chart appVersion if not set)
+    tag: ""
+  
+  # Transport configuration for MCP protocol (only streamable-http is supported)
+  transport: streamable-http
+  
+  # Port for the MCP server
+  port: 9900
+  
+  # Target port (required for streamable-http and sse transports)
+  targetPort: 9900
+  
+  # Resource limits and requests for the container
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+  
+  # Environment variables for mcp-optimizer  
+  env:
+    # Runtime mode - must be "k8s" for Kubernetes deployment
+    - name: RUNTIME_MODE
+      value: "k8s"
+    # Query all namespaces for MCPServers
+    - name: K8S_ALL_NAMESPACES
+      value: "true"
+    # MCP server port
+    - name: MCP_PORT
+      value: "9900"
+    # Logging level
+    - name: LOG_LEVEL
+      value: "INFO"
+    # Workload polling interval (seconds)
+    - name: WORKLOAD_POLLING_INTERVAL
+      value: "60"
+    # Registry polling interval (seconds)
+    - name: REGISTRY_POLLING_INTERVAL
+      value: "300"
+    # Maximum tools to return in search
+    - name: MAX_TOOLS_TO_RETURN
+      value: "8"
+    # Maximum servers to return in search
+    - name: MAX_SERVERS_TO_RETURN
+      value: "5"
+    # Hybrid search semantic ratio (0.0-1.0)
+    - name: HYBRID_SEARCH_SEMANTIC_RATIO
+      value: "0.5"
+    # Database URLs - using writable /tmp location
+    - name: ASYNC_DB_URL
+      value: "sqlite+aiosqlite:///data/mcp_optimizer.db"
+    - name: DB_URL
+      value: "sqlite:///data/mcp_optimizer.db"
+  
+  # Pod template spec (optional) - use this for advanced pod customization
+  # When set, this takes precedence over env and resources fields above
+  podTemplateSpec:
+    spec:
+      securityContext:
+        fsGroup: 1000
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: mcp
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+          env:
+            - name: SQLITE_TMPDIR
+              value: "/tmp"
+            - name: RUNTIME_MODE
+              value: "k8s"
+            - name: K8S_ALL_NAMESPACES
+              value: "true"
+            - name: MCP_PORT
+              value: "9900"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: WORKLOAD_POLLING_INTERVAL
+              value: "60"
+            - name: REGISTRY_POLLING_INTERVAL
+              value: "300"
+            - name: MAX_TOOLS_TO_RETURN
+              value: "8"
+            - name: MAX_SERVERS_TO_RETURN
+              value: "5"
+            - name: HYBRID_SEARCH_SEMANTIC_RATIO
+              value: "0.5"
+            - name: ASYNC_DB_URL
+              value: "sqlite+aiosqlite:///data/mcp_optimizer.db"
+            - name: DB_URL
+              value: "sqlite:///data/mcp_optimizer.db"
+  
+  # Labels to apply to the MCPServer resource
+  labels: {}
+  
+  # Annotations to apply to the MCPServer resource
+  annotations: {}
+
+# Service Account configuration
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  
+  # Annotations to add to the service account
+  annotations: {}
+  
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+  
+  # Labels to add to the service account
+  labels: {}
+
+# RBAC configuration
+rbac:
+  # Specifies whether RBAC resources should be created
+  create: true
+  
+  # Rules for the ClusterRole
+  rules:
+    # Allow reading MCPServer CRDs
+    - apiGroups: ["toolhive.stacklok.dev"]
+      resources: ["mcpservers"]
+      verbs: ["get", "list", "watch"]
+
+# Additional optional configurations
+# Group filtering - uncomment and configure to limit which MCP server groups mcp-optimizer can access
+# groupFiltering:
+#   allowedGroups:
+#     - "development"
+#     - "production"
+
+# Database configuration
+# By default uses SQLite in /tmp (ephemeral storage)
+# For production, consider using PostgreSQL or mounting a persistent volume
+database:
+  # Type: sqlite or postgresql
+  type: sqlite
+  
+  # SQLite configuration (default)
+  sqlite:
+    # Path to SQLite database file (inside the container)
+    # Using /tmp for ephemeral storage (no persistent volume needed)
+    path: /tmp/mcp_optimizer.db
+  
+  # PostgreSQL configuration (optional)
+  # postgresql:
+  #   host: postgres.default.svc.cluster.local
+  #   port: 5432
+  #   database: mcp_optimizer
+  #   username: mcp_optimizer
+  #   # Password should be provided via secret
+  #   passwordSecretName: mcp-optimizer-db-secret
+  #   passwordSecretKey: password
+
+# Persistence configuration for SQLite
+persistence:
+  # Enable persistence using PVC
+  enabled: false
+  
+  # PVC configuration
+  # storageClass: "-"
+  accessMode: ReadWriteOnce
+  size: 1Gi
+  
+  # Existing claim name to use
+  # existingClaim: ""
+
+# Network policy configuration
+networkPolicy:
+  # Enable network policies
+  enabled: false
+  
+  # Ingress rules
+  ingress: []
+  
+  # Egress rules
+  egress: []
+

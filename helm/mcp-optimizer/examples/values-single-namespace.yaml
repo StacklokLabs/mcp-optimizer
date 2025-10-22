@@ -1,0 +1,43 @@
+# Example values file for MCP-Optimizer configured to query a single namespace
+# This is useful when you want to limit mcp-optimizer's scope
+
+mcpserver:
+  name: mcp-optimizer
+  namespace: toolhive-system
+  
+  image:
+    repository: ghcr.io/your-org/mcp-optimizer
+    tag: "0.1.0"
+  
+  env:
+    - name: RUNTIME_MODE
+      value: "k8s"
+    # Query only the toolhive-system namespace
+    - name: K8S_ALL_NAMESPACES
+      value: "false"
+    - name: K8S_NAMESPACE
+      value: "toolhive-system"
+    - name: MCP_PORT
+      value: "9900"
+    - name: LOG_LEVEL
+      value: "INFO"
+  
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+
+persistence:
+  enabled: false  # Use emptyDir for single namespace (less data)
+
+serviceAccount:
+  create: true
+
+# RBAC still needs ClusterRole for now, but you could modify this
+# to use a Role if you want to restrict to a single namespace
+rbac:
+  create: true
+
