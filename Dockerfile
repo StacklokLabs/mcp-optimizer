@@ -1,5 +1,5 @@
 # SQLite-vec builder stage - separate stage for better caching
-FROM python:3.13-slim AS sqlite-vec-builder
+FROM python:3.14-slim AS sqlite-vec-builder
 
 # Install build dependencies for compiling sqlite-vec
 RUN apt-get update && apt-get install -y \
@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/var/cache/git \
     && cp dist/vec0.* /sqlite-vec-dist/
 
 # Main builder stage
-FROM python:3.13-slim AS builder
+FROM python:3.14-slim AS builder
 
 # Create non-root user
 RUN groupadd --gid 1000 app && \
@@ -73,7 +73,7 @@ print('Downloading embedding model...'); \
 model = TextEmbedding(model_name='BAAI/bge-small-en-v1.5'); \
 print('Model downloaded successfully')"
 
-FROM python:3.13-slim AS runner
+FROM python:3.14-slim AS runner
 
 # Create non-root user (same as builder stage)
 RUN groupadd --gid 1000 app && \
