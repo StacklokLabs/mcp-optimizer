@@ -42,11 +42,9 @@ USER app
 COPY --chown=app:app src/ ./src/
 COPY --chown=app:app migrations/ ./migrations/
 
-# Sync the project excluding workspace members (evaluation)
 RUN --mount=type=cache,target=/home/app/.cache/uv,uid=1000,gid=1000 \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    --mount=type=bind,source=evaluation/pyproject.toml,target=evaluation/pyproject.toml \
     --mount=type=bind,source=README.md,target=README.md \
     uv sync --package mcp-optimizer --no-dev --locked --no-editable
 

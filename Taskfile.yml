@@ -99,6 +99,7 @@ tasks:
   run-in-thv:
     desc: Build mcp-optimizer and run it in ToolHive
     cmds:
+      - thv group create optim || true
       - thv rm mcp-optimizer || true
       - docker build -t mcp-optimizer .
       - thv run mcp-optimizer:latest --transport streamable-http --group optim
