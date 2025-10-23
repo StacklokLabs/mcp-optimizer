@@ -1,0 +1,60 @@
+# Python cache and build artifacts
+__pycache__/
+*.py[oc]
+*.egg-info
+build/
+dist/
+wheels/
+
+# Virtual environments
+.venv
+venv/
+
+# Git repository
+.git/
+.gitignore
+
+# Docker files
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Development and testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+
+# Logs
+*.log
+
+# Environment files
+.env*
+*.local*
+
+# Database files
+*.db
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Documentation and specs
+docs/
+specs/
+CLAUDE.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Reports
+bandit-report.json
+pip-audit-report.json
+sbom.json
