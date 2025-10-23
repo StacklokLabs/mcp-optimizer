@@ -29,7 +29,7 @@ jobs:
           tags: mcp-optimizer:latest
 
       - name: Install ToolHive
-        uses: StacklokLabs/toolhive-actions/install@v0
+        uses: StacklokLabs/toolhive-actions/install@6a095f99aa2fd6cd92cf0bb94bdf509b99820c06 # v0.0.3
 
       - name: Run ToolHive server
         run: |
