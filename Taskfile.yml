@@ -63,7 +63,7 @@ tasks:
   generate-thv-models:
     desc: Generate Pydantic models from Toolhive's OpenAPI specification
     cmds:
-      - ./generate_toolhive_models.sh
+      - ./scripts/generate_toolhive_models.sh
     deps:
       - install
 
