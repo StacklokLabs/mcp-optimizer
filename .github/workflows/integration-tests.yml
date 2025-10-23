@@ -41,11 +41,27 @@ jobs:
           echo "Checking from Docker bridge IP..."
           curl -v http://172.17.0.1:9090/api/v1beta/version || echo "Failed to connect via Docker bridge IP"
 
-      - name: Install time MCP server
-        run: thv run time --host 0.0.0.0
+      - name: Install MCP servers
+        run: |
+          echo "Installing time MCP server..."
+          thv run time --host 0.0.0.0
+          echo "Installing fetch MCP server..."
+          thv run fetch --host 0.0.0.0
+          echo "Creating ToolHive group 'test-group'..."
+          thv group create test-group || true
+          echo "Running Playwright MCP server in 'test-group', playwright tools shouldn't appear since ALLOWED_GROUPS=default..."
+          thv run playwright --group test-group --host 0.0.0.0
+
 
       - name: Install mcp-optimizer server
-        run: thv run mcp-optimizer:latest --transport streamable-http --proxy-port 8080 --env TOOLHIVE_HOST=172.17.0.1 --env TOOLHIVE_PORT=9090
+        run: >-
+          thv run mcp-optimizer:latest
+          --transport streamable-http
+          --proxy-port 8080
+          --env TOOLHIVE_HOST=172.17.0.1
+          --env TOOLHIVE_PORT=9090
+          --env WORKLOAD_POLLING_INTERVAL=2
+          --env ALLOWED_GROUPS=default
 
       - name: Check server status
         run: |
@@ -91,9 +107,31 @@ jobs:
           enable-cache: true
           python-version: '3.13'
 
-      - name: Run integration tests
+      - name: Run integration tests (with fetch server)
         env:
           MCP_OPTIMIZER_URL: http://localhost:8080/mcp
+        run: uv run tests/integration_test.py
+
+      - name: Delete fetch MCP server
+        run: |
+          echo "=== fetch container logs ==="
+          docker logs fetch 2>&1 || true
+          echo "Deleting fetch MCP server..."
+          thv rm fetch
+
+      - name: Verify fetch server was deleted
+        run: |
+          echo "Verifying fetch server deletion..."
+          sleep 8
+          echo "=== ToolHive workload status after deletion ==="
+          thv ls
+          echo "=== Docker containers after deletion ==="
+          docker ps
+
+      - name: Run integration tests (without fetch server)
+        env:
+          MCP_OPTIMIZER_URL: http://localhost:8080/mcp
+          EXPECT_FETCH_ABSENT: "true"
         run: uv run tests/integration_test.py
 
       - name: Capture mcp-optimizer container logs
