@@ -49,6 +49,7 @@ jobs:
             - Performance considerations
             - Security concerns
             - Regressions or breaking changes
+            - Verbosity and clarity of code. The code should be as short as possible while still being clear.
 
             Use the repository's CLAUDE.md for guidance on style and conventions.
 
