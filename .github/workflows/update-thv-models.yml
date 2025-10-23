@@ -5,6 +5,9 @@ on:
     # Run every day at midnight UTC
     - cron: '0 0 * * *'
   workflow_dispatch:  # Allow manual trigger
+  push:
+    branches:
+      - fix-gha-generate-thv-models  # TODO: Remove after debugging
 
 permissions:
   contents: write
@@ -37,11 +40,69 @@ jobs:
         with:
           version: 3.44.1
 
-      - name: Install Dependencies
-        run: task install
+      - name: Start ToolHive Server
+        run: |
+          echo "Starting thv serve --openapi on port 8080..."
+          thv serve --openapi --port 8080 &
+          THV_PID=$!
+          echo "THV_PID=$THV_PID" >> $GITHUB_ENV
+          echo "thv serve started with PID: $THV_PID"
+
+          echo "Waiting for thv serve to be ready..."
+          MAX_ATTEMPTS=30
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            # Check if the process is still running
+            if ! kill -0 "$THV_PID" 2>/dev/null; then
+              wait "$THV_PID" || true
+              exit_code=$?
+              echo "ERROR: thv serve process (PID: $THV_PID) exited unexpectedly with code $exit_code"
+              exit $exit_code
+            fi
+
+            # Check if endpoint returns valid JSON with expected content
+            if response=$(curl -s --max-time 5 http://127.0.0.1:8080/api/openapi.json 2>&1); then
+              # Validate JSON
+              if echo "$response" | python3 -m json.tool > /dev/null 2>&1; then
+                # Check for openapi field
+                if echo "$response" | grep -q "openapi"; then
+                  echo "thv serve is ready!"
+                  break
+                else
+                  echo "Attempt $i/$MAX_ATTEMPTS: Response doesn't contain 'openapi' field"
+                fi
+              else
+                echo "Attempt $i/$MAX_ATTEMPTS: Invalid JSON response"
+              fi
+            else
+              echo "Attempt $i/$MAX_ATTEMPTS: curl failed"
+            fi
+
+            if [ $i -eq $MAX_ATTEMPTS ]; then
+              echo "ERROR: thv serve did not become ready after $MAX_ATTEMPTS attempts"
+              echo "Last response: $response"
+              # Kill the process if it's still running
+              kill "$THV_PID" 2>/dev/null || true
+              exit 1
+            fi
+            sleep 1
+          done
 
       - name: Generate ToolHive Models
+        env:
+          MANAGE_THV: "false"
         run: task generate-thv-models
+
+      - name: Stop ToolHive Server
+        if: always()
+        run: |
+          if [ -n "$THV_PID" ] && kill -0 "$THV_PID" 2>/dev/null; then
+            echo "Stopping thv serve (PID: $THV_PID)..."
+            kill "$THV_PID" 2>/dev/null || true
+            wait "$THV_PID" 2>/dev/null || true
+            echo "thv serve stopped"
+          else
+            echo "thv serve process not running or already stopped"
+          fi
 
       - name: Check for Changes
         id: check-changes
