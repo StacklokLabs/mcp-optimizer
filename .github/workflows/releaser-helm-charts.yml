@@ -2,6 +2,11 @@ name: Publish Helm Charts
 on:
   workflow_call:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Chart version to release (e.g., 0.0.2)'
+        required: false
+        type: string
 
 jobs:
   release-helm-charts:
@@ -24,12 +29,18 @@ jobs:
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
-      - name: Update Chart Version from Tag
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Update Chart Version from Tag or Input
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.version != ''
         run: |
-          # Extract version from tag (e.g., v0.0.2 -> 0.0.2)
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "Updating chart version to $VERSION"
+          # Use manual input version if provided, otherwise extract from tag
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+            echo "Using manually specified version: $VERSION"
+          else
+            # Extract version from tag (e.g., v0.0.2 -> 0.0.2)
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "Using version from tag: $VERSION"
+          fi
           
           # Update version and appVersion in Chart.yaml
           sed -i "s/^version:.*/version: $VERSION/" helm/mcp-optimizer/Chart.yaml
