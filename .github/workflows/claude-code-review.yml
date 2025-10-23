@@ -2,10 +2,7 @@ name: Claude Code Review
 
 on:
   pull_request:
-    # Only make CC review on PR creation. Later, if we want further checks we can mention it.
-    # e.g. @claude please re-review
-    types: [opened]
-    # types: [opened, synchronize]
+    types: [opened, synchronize]
     # Optional: Only run on specific file changes
     # paths:
     #   - "src/**/*.ts"
@@ -30,13 +27,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
       - name: Run Claude Code Review
         id: claude-review
-        uses: anthropics/claude-code-action@ac1a3207f3f00b4a37e2f3a6f0935733c7c64651 # v1.0
+        uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
