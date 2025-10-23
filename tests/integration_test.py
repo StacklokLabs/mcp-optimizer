@@ -167,8 +167,8 @@ async def test_mcp_optimizer_integration():
                 }
 
                 if os.getenv("ENABLE_DYNAMIC_INSTALL", False):
-                    expected_tools.append("search_registry")
-                    expected_tools.appedn("install_server")
+                    expected_tools.add("search_registry")
+                    expected_tools.add("install_server")
 
                 assert expected_tools.issubset(tool_names), (
                     f"Expected tools not found: {expected_tools - tool_names}"

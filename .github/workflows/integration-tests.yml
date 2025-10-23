@@ -114,6 +114,8 @@ jobs:
 
       - name: Delete fetch MCP server
         run: |
+          echo "=== fetch container logs ==="
+          docker logs fetch 2>&1 || true
           echo "Deleting fetch MCP server..."
           thv rm fetch
 
@@ -139,5 +141,3 @@ jobs:
           docker logs mcp-optimizer 2>&1 || true
           echo "=== time container logs ==="
           docker logs time 2>&1 || true
-          echo "=== fetch container logs ==="
-          docker logs fetch 2>&1 || true
