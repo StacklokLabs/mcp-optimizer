@@ -24,6 +24,21 @@ jobs:
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
+      - name: Update Chart Version from Tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # Extract version from tag (e.g., v0.0.2 -> 0.0.2)
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "Updating chart version to $VERSION"
+          
+          # Update version and appVersion in Chart.yaml
+          sed -i "s/^version:.*/version: $VERSION/" helm/mcp-optimizer/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"$VERSION\"/" helm/mcp-optimizer/Chart.yaml
+          
+          # Show the changes
+          echo "Updated Chart.yaml:"
+          cat helm/mcp-optimizer/Chart.yaml
+
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@cae68fefc6b5f367a0275617c9f83181ba54714f # v1.7.0
         with:
