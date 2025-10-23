@@ -18,7 +18,6 @@ The general purpose of mcp-optimizer is to develop a MCP server that acts as an 
 - The main server code is located in `src/mcp_optimizer/server.py`
 - The database configuration and CRUD operations are in `src/mcp_optimizer/db/`
 - The mcp-optimizer CLI implementation is located in `src/mcp_optimizer/cli.py`
-- The evaluation CLI is located at `evaluation/src/mcp_optimizer_eval/cli.py`
 
 ## Development Workflow
 - After adding or modifying code, use `task format` to automatically format the code
