@@ -43,7 +43,19 @@ jobs:
       - name: Generate ToolHive Models
         run: task generate-thv-models
 
+      - name: Check for Changes
+        id: check-changes
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes detected"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "Changes detected"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create Pull Request
+        if: steps.check-changes.outputs.has_changes == 'true'
         id: create-pr
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
@@ -52,7 +64,7 @@ jobs:
             Update ToolHive API models
 
             Automated update of ToolHive API models from OpenAPI specification.
-          branch: update-thv-models
+          branch: update-thv-models-${{ github.run_id }}
           delete-branch: true
           title: 'chore: Update ToolHive API models'
           body: |

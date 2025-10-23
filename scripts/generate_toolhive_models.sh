@@ -33,14 +33,18 @@ if [ "$MANAGE_THV" = "true" ]; then
     echo "Waiting for thv serve to be ready..."
     MAX_ATTEMPTS=30
     for i in $(seq 1 $MAX_ATTEMPTS); do
-        if curl -s --max-time 5 http://127.0.0.1:8080/api/openapi.json > /dev/null 2>&1; then
+        # Check if endpoint returns valid JSON with expected content
+        response=$(curl -s --max-time 5 http://127.0.0.1:8080/api/openapi.json 2>&1)
+        if [ $? -eq 0 ] && echo "$response" | python3 -m json.tool > /dev/null 2>&1 && echo "$response" | grep -q "openapi"; then
             echo "thv serve is ready!"
             break
         fi
         if [ $i -eq $MAX_ATTEMPTS ]; then
             echo "ERROR: thv serve did not become ready"
+            echo "Last response: $response"
             exit 1
         fi
+        echo "Attempt $i/$MAX_ATTEMPTS: Waiting for OpenAPI endpoint..."
         sleep 1
     done
 fi
