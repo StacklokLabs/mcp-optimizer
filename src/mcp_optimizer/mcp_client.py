@@ -128,6 +128,7 @@ class MCPServerClient:
             f"Using {proxy_mode} client for workload",
             workload=self.workload.name,
             proxy_mode_field=self.workload.proxy_mode,
+            url=self.workload.url,
         )
 
         try:
