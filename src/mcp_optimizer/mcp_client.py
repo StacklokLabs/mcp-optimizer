@@ -106,29 +106,6 @@ class MCPServerClient:
         )
         return url_to_toolhive_proxy_mode(self.workload.url)
 
-    def _prepare_url_for_proxy_mode(self, proxy_mode: ToolHiveProxyMode) -> str:
-        """
-        Prepare the URL with the correct path for the transport type.
-
-        Args:
-            proxy_mode: The proxy mode being used
-
-        Returns:
-            The URL with the correct path appended
-        """
-        url = self.workload.url
-        if proxy_mode == ToolHiveProxyMode.STREAMABLE:
-            # Streamable HTTP expects /mcp path
-            if not url.endswith("/mcp"):
-                url = url.rstrip("/") + "/mcp"
-                logger.debug(f"Appended /mcp path to URL: {url}", workload=self.workload.name)
-        elif proxy_mode == ToolHiveProxyMode.SSE:
-            # SSE expects /sse path
-            if not url.endswith("/sse"):
-                url = url.rstrip("/") + "/sse"
-                logger.debug(f"Appended /sse path to URL: {url}", workload=self.workload.name)
-        return url
-
     async def _execute_with_session(self, operation: Callable[[ClientSession], Awaitable]) -> Any:
         """
         Execute an operation with an MCP session.
@@ -151,14 +128,8 @@ class MCPServerClient:
             f"Using {proxy_mode} client for workload",
             workload=self.workload.name,
             proxy_mode_field=self.workload.proxy_mode,
+            url=self.workload.url,
         )
-
-        # Prepare URL with correct path for the transport type
-        url = self._prepare_url_for_proxy_mode(proxy_mode)
-
-        # Temporarily override the URL for this connection
-        original_url = self.workload.url
-        self.workload.url = url
 
         try:
             if proxy_mode == ToolHiveProxyMode.STREAMABLE:
@@ -197,9 +168,6 @@ class MCPServerClient:
                 error=str(e),
             )
             raise WorkloadConnectionError(f"MCP protocol error: {e}") from e
-        finally:
-            # Restore original URL
-            self.workload.url = original_url
 
     async def _execute_streamable_session(
         self, operation: Callable[[ClientSession], Awaitable]
