@@ -221,7 +221,9 @@ def main(**kwargs: Any) -> None:
         # Pass config values to components instead of using get_config()
         db_config = DatabaseConfig(database_url=config.async_db_url)
         embedding_manager = EmbeddingManager(
-            model_name=config.embedding_model_name, enable_cache=config.enable_embedding_cache
+            model_name=config.embedding_model_name,
+            enable_cache=config.enable_embedding_cache,
+            threads=config.embedding_threads,
         )
         ingestion_service = IngestionService(
             db_config,

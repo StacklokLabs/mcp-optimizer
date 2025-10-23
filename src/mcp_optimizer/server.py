@@ -146,7 +146,9 @@ def initialize_server_components(config: MCPOptimizerConfig) -> None:
     workload_server_ops = WorkloadServerOps(db)
     registry_server_ops = RegistryServerOps(db)
     embedding_manager = EmbeddingManager(
-        model_name=config.embedding_model_name, enable_cache=config.enable_embedding_cache
+        model_name=config.embedding_model_name,
+        enable_cache=config.enable_embedding_cache,
+        threads=config.embedding_threads,
     )
     mcp.settings.port = config.mcp_port
     toolhive_client = ToolhiveClient(

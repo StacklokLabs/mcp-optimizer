@@ -34,7 +34,7 @@ class EmbeddingManager:
     See database migration file for the configured dimension in vector tables.
     """
 
-    def __init__(self, model_name: str, enable_cache: bool):
+    def __init__(self, model_name: str, enable_cache: bool, threads: int | None = None):
         """Initialize with specified embedding model.
 
         Args:
@@ -43,16 +43,20 @@ class EmbeddingManager:
                        WARNING: Changing models may require database migration if
                        the new model has a different embedding dimension.
             enable_cache: Whether to enable embedding caching.
+            threads: Number of threads to use for embedding generation.
+                    None = use all available CPU cores (default FastEmbed behavior).
+                    Set to 1-4 to limit CPU usage in production.
         """
         self.model_name = model_name
         self._model: TextEmbedding | None = None
         self.enable_cache = enable_cache
+        self.threads = threads
 
     @property
     def model(self) -> TextEmbedding:
         """Lazy load the embedding model."""
         if self._model is None:
-            self._model = TextEmbedding(model_name=self.model_name)
+            self._model = TextEmbedding(model_name=self.model_name, threads=self.threads)
         return self._model
 
     def _generate_single_cached_embedding(self, text: str) -> np.ndarray:

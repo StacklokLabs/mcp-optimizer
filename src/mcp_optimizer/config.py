@@ -152,6 +152,14 @@ class MCPOptimizerConfig(BaseModel):
         description="Name of the embedding model to use",
     )
 
+    embedding_threads: int | None = Field(
+        default=2,
+        ge=1,
+        le=16,
+        description="Number of threads for embedding generation (1-16). "
+        "Lower values reduce CPU usage. Set to None to use all CPU cores. "
+    )
+
     # Token counting configuration
     encoding: Literal["o200k_base", "cl100k_base", "p50k_base", "r50k_base"] = Field(
         default="cl100k_base",
@@ -468,6 +476,7 @@ def _populate_config_from_env() -> dict[str, Any]:
         "REGISTRY_POLLING_INTERVAL": "registry_polling_interval",
         "MCP_TIMEOUT": "mcp_timeout",
         "EMBEDDING_MODEL_NAME": "embedding_model_name",
+        "EMBEDDING_THREADS": "embedding_threads",
         "ENCODING": "encoding",
         "MAX_TOOLS_TO_RETURN": "max_tools_to_return",
         "TOOL_DISTANCE_THRESHOLD": "tool_distance_threshold",
