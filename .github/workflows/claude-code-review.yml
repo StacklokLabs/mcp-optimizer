@@ -48,9 +48,14 @@ jobs:
             - Potential bugs or issues
             - Performance considerations
             - Security concerns
-            - Test coverage
+            - Regressions or breaking changes
+            - Verbosity and clarity of code. The code should be as short as possible while still being clear.
 
-            Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
+            Use the repository's CLAUDE.md for guidance on style and conventions.
+
+            Have the following practices in mind while reviewing:
+            - Be constructive and helpful in your feedback.
+            - Be specific and precise in the feedback. Reading time for the review should be less than 2 minutes.
 
             Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
 
