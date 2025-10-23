@@ -95,13 +95,21 @@ def _is_search_registry_result_valid(tool_call_result: CallToolResult) -> bool:
     return _check_expected_tools(list_tools, expected_tools)
 
 
-def _is_list_tools_result_valid(tool_call_result: CallToolResult) -> bool:
+def _is_list_tools_result_valid(
+    tool_call_result: CallToolResult, expect_fetch_absent: bool
+) -> bool:
     """Check if the result text is a valid list_tools result."""
     list_tools = _get_list_tools(tool_call_result)
     if list_tools is None:
         return False
 
+    # Always expect time server tools
     expected_tools = {McpTool("get_current_time", "time"), McpTool("convert_time", "time")}
+
+    # Conditionally expect fetch tool based on expect_fetch_absent variable
+    if not expect_fetch_absent:
+        expected_tools.add(McpTool("fetch", "fetch"))
+
     return _check_expected_tools(list_tools, expected_tools)
 
 
@@ -131,10 +139,10 @@ def _is_call_tool_result_valid(tool_call_result: CallToolResult) -> bool:
 
 
 async def test_mcp_optimizer_integration():
-    """Run integration tests against MCP-Optimizer server in ToolHive."""
-    # Get MCP-Optimizer URL from environment or use default
+    """Run integration tests against mcp-optimizer server in ToolHive."""
+    # Get mcp-optimizer URL from environment or use default
     mcp_optimizer_url = os.getenv("MCP_OPTIMIZER_URL", "http://127.0.0.1:8080/mcp")
-    logger.info(f"Connecting to MCP-Optimizer server at {mcp_optimizer_url}")
+    logger.info(f"Connecting to mcp-optimizer server at {mcp_optimizer_url}")
 
     try:
         async with streamablehttp_client(mcp_optimizer_url) as (read_stream, write_stream, _):
@@ -142,7 +150,7 @@ async def test_mcp_optimizer_integration():
                 await session.initialize()
                 # Connection test
                 assert session is not None, "Failed to create MCP client session"
-                logger.info("Connected to MCP-Optimizer server successfully")
+                logger.info("Connected to mcp-optimizer server successfully")
 
                 # ListTools - Get all available tools
                 logger.info("Listing all tools...")
@@ -181,7 +189,9 @@ async def test_mcp_optimizer_integration():
                 # list_tools - Get tools from installed MCP servers
                 logger.info("Listing tools from installed MCP servers...")
                 search_result = await session.call_tool("list_tools")
-                assert _is_list_tools_result_valid(search_result), (
+                # Verify fetch tool presence based on environment variable (set on GHA)
+                expect_fetch_absent = os.getenv("EXPECT_FETCH_ABSENT", "false").lower() == "true"
+                assert _is_list_tools_result_valid(search_result, expect_fetch_absent), (
                     "list_tools did not return expected tools"
                 )
                 logger.info("✓ list_tools returned expected tools from installed MCP servers")
