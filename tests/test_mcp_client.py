@@ -236,3 +236,249 @@ def test_extract_error_from_exception_group():
     result = client._extract_error_from_exception_group(eg)
     assert "ValueError" in result
     assert "Some error" in result
+
+
+def test_workload_url_unchanged_after_init():
+    """Test that workload URL is not modified during MCPServerClient initialization."""
+    original_url = "http://localhost:8080/sse/test-server"
+    workload = Workload(
+        name="test-server",
+        url=original_url,
+        status="running",
+        tool_type="mcp",
+    )
+
+    # Create client
+    _client = MCPServerClient(workload, timeout=10)
+
+    # Verify URL is unchanged
+    assert workload.url == original_url
+
+
+def test_workload_url_unchanged_with_proxy_mode():
+    """Test that workload URL is not modified when proxy_mode is set."""
+    original_url = "http://localhost:8080/mcp/test-server"
+    workload = Workload(
+        name="test-server",
+        url=original_url,
+        proxy_mode="streamable-http",
+        status="running",
+        tool_type="mcp",
+    )
+
+    # Create client
+    _client = MCPServerClient(workload, timeout=10)
+
+    # Verify URL is unchanged
+    assert workload.url == original_url
+
+
+@pytest.mark.asyncio
+async def test_workload_url_unchanged_during_list_tools_streamable():
+    """Test that workload URL remains unchanged during list_tools with streamable-http."""
+    original_url = "http://localhost:8080/mcp/test-server"
+    workload = Workload(
+        name="test-server",
+        url=original_url,
+        status="running",
+        tool_type="mcp",
+    )
+
+    client = MCPServerClient(workload, timeout=10)
+
+    # Mock the MCP client session
+    mock_result = AsyncMock()
+    mock_result.tools = []
+
+    mock_session = AsyncMock()
+    mock_session.list_tools.return_value = mock_result
+
+    with (
+        patch("mcp_optimizer.mcp_client.streamablehttp_client") as mock_client,
+        patch(
+            "mcp_optimizer.mcp_client.ClientSession", return_value=mock_session
+        ) as mock_session_class,
+    ):
+        # Mock the context manager
+        mock_client.return_value.__aenter__.return_value = (AsyncMock(), AsyncMock(), AsyncMock())
+        mock_session_class.return_value.__aenter__.return_value = mock_session
+
+        # Call list_tools
+        await client.list_tools()
+
+        # Verify URL is unchanged in workload
+        assert workload.url == original_url
+
+        # Verify the client was called with the original URL
+        mock_client.assert_called_once_with(original_url)
+
+
+@pytest.mark.asyncio
+async def test_workload_url_unchanged_during_list_tools_sse():
+    """Test that workload URL remains unchanged during list_tools with SSE."""
+    original_url = "http://localhost:8080/sse/test-server"
+    workload = Workload(
+        name="test-server",
+        url=original_url,
+        status="running",
+        tool_type="mcp",
+    )
+
+    client = MCPServerClient(workload, timeout=10)
+
+    # Mock the MCP client session
+    mock_result = AsyncMock()
+    mock_result.tools = []
+
+    mock_session = AsyncMock()
+    mock_session.list_tools.return_value = mock_result
+
+    with (
+        patch("mcp_optimizer.mcp_client.sse_client") as mock_client,
+        patch(
+            "mcp_optimizer.mcp_client.ClientSession", return_value=mock_session
+        ) as mock_session_class,
+    ):
+        # Mock the context manager
+        mock_client.return_value.__aenter__.return_value = (AsyncMock(), AsyncMock())
+        mock_session_class.return_value.__aenter__.return_value = mock_session
+
+        # Call list_tools
+        await client.list_tools()
+
+        # Verify URL is unchanged in workload
+        assert workload.url == original_url
+
+        # Verify the client was called with the original URL
+        mock_client.assert_called_once_with(original_url)
+
+
+@pytest.mark.asyncio
+async def test_workload_url_unchanged_during_call_tool():
+    """Test that workload URL remains unchanged during call_tool."""
+    original_url = "http://localhost:8080/mcp/test-server"
+    workload = Workload(
+        name="test-server",
+        url=original_url,
+        status="running",
+        tool_type="mcp",
+    )
+
+    client = MCPServerClient(workload, timeout=10)
+
+    # Mock the MCP client session and result
+    mock_result = AsyncMock()
+    mock_result.content = [AsyncMock(text="Tool result")]
+
+    mock_session = AsyncMock()
+    mock_session.call_tool.return_value = mock_result
+
+    with (
+        patch("mcp_optimizer.mcp_client.streamablehttp_client") as mock_client,
+        patch(
+            "mcp_optimizer.mcp_client.ClientSession", return_value=mock_session
+        ) as mock_session_class,
+    ):
+        # Mock the context manager
+        mock_client.return_value.__aenter__.return_value = (AsyncMock(), AsyncMock(), AsyncMock())
+        mock_session_class.return_value.__aenter__.return_value = mock_session
+
+        # Call tool
+        await client.call_tool("test_tool", {"param": "value"})
+
+        # Verify URL is unchanged in workload
+        assert workload.url == original_url
+
+        # Verify the client was called with the original URL
+        mock_client.assert_called_once_with(original_url)
+
+
+@pytest.mark.asyncio
+async def test_workload_url_unchanged_with_proxy_mode_explicit():
+    """Test that workload URL is not modified when explicit proxy_mode is provided."""
+    original_url = "http://localhost:8080/custom/endpoint"
+    workload = Workload(
+        name="test-server",
+        url=original_url,
+        proxy_mode="streamable-http",
+        status="running",
+        tool_type="mcp",
+    )
+
+    client = MCPServerClient(workload, timeout=10)
+
+    # Mock the MCP client session
+    mock_result = AsyncMock()
+    mock_result.tools = []
+
+    mock_session = AsyncMock()
+    mock_session.list_tools.return_value = mock_result
+
+    with (
+        patch("mcp_optimizer.mcp_client.streamablehttp_client") as mock_client,
+        patch(
+            "mcp_optimizer.mcp_client.ClientSession", return_value=mock_session
+        ) as mock_session_class,
+    ):
+        # Mock the context manager
+        mock_client.return_value.__aenter__.return_value = (AsyncMock(), AsyncMock(), AsyncMock())
+        mock_session_class.return_value.__aenter__.return_value = mock_session
+
+        # Call list_tools
+        await client.list_tools()
+
+        # Verify URL is unchanged in workload
+        assert workload.url == original_url
+
+        # Verify the client was called with the original URL (no modification)
+        mock_client.assert_called_once_with(original_url)
+
+
+@pytest.mark.asyncio
+async def test_workload_url_unchanged_multiple_operations():
+    """Test that workload URL remains unchanged across multiple operations."""
+    original_url = "http://localhost:8080/mcp/test-server"
+    workload = Workload(
+        name="test-server",
+        url=original_url,
+        status="running",
+        tool_type="mcp",
+    )
+
+    client = MCPServerClient(workload, timeout=10)
+
+    # Mock the MCP client session
+    mock_list_result = AsyncMock()
+    mock_list_result.tools = []
+
+    mock_call_result = AsyncMock()
+    mock_call_result.content = [AsyncMock(text="Tool result")]
+
+    mock_session = AsyncMock()
+    mock_session.list_tools.return_value = mock_list_result
+    mock_session.call_tool.return_value = mock_call_result
+
+    with (
+        patch("mcp_optimizer.mcp_client.streamablehttp_client") as mock_client,
+        patch(
+            "mcp_optimizer.mcp_client.ClientSession", return_value=mock_session
+        ) as mock_session_class,
+    ):
+        # Mock the context manager
+        mock_client.return_value.__aenter__.return_value = (AsyncMock(), AsyncMock(), AsyncMock())
+        mock_session_class.return_value.__aenter__.return_value = mock_session
+
+        # Perform multiple operations
+        await client.list_tools()
+        assert workload.url == original_url
+
+        await client.call_tool("test_tool", {"param": "value"})
+        assert workload.url == original_url
+
+        await client.list_tools()
+        assert workload.url == original_url
+
+        # Verify the client was always called with the original URL
+        assert mock_client.call_count == 3
+        for call in mock_client.call_args_list:
+            assert call[0][0] == original_url
