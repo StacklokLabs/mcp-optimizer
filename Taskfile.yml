@@ -74,12 +74,24 @@ tasks:
     deps:
       - install
 
-  run-container:
-    desc: Run the application in a container
+  build:
+    desc: Build multi-architecture container image
     cmds:
-      - docker build -t mcp-optimizer .
+      - docker buildx create --name mcp-optimizer-builder --use --bootstrap || docker buildx use mcp-optimizer-builder
+      - docker buildx build --platform linux/amd64,linux/arm64 -t mcp-optimizer:latest --load .
       - docker rm -f mcp-optimizer-container || true
-      - docker run --network host --name mcp-optimizer-container mcp-optimizer
+
+  build-local:
+    desc: Build container image for local architecture only (faster for development)
+    cmds:
+      - docker build -t mcp-optimizer:latest .
+      - docker rm -f mcp-optimizer-container || true
+
+  run-container:
+    desc: Run the application in a container (builds for local arch only)
+    cmds:
+      - task: build-local
+      - docker run --network host --name mcp-optimizer-container mcp-optimizer:latest
 
   install-hooks:
     desc: Install git hooks for the project
