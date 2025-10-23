@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 
 import httpx
 import structlog
+from semver import Version
 
 from mcp_optimizer.toolhive.api_models.core import Workload
 from mcp_optimizer.toolhive.api_models.registry import ImageMetadata, Registry, RemoteServerMetadata
@@ -95,7 +96,7 @@ class ToolhiveClient:
         """
         if port is not None:
             for attempt in range(3):
-                if self._is_toolhive_available(self.thv_host, port):
+                if self._is_toolhive_available(self.thv_host, port)[1]:
                     self.thv_port = port
                     break
                 logger.warning(
@@ -153,10 +154,50 @@ class ToolhiveClient:
             "Scanning for ToolHive", host=host, port_range=f"{scan_port_start}-{scan_port_end}"
         )
 
+        thv_version_port: list[tuple[str, int]] = []
         for port in range(scan_port_start, scan_port_end + 1):
-            if await self._is_toolhive_available_async(host, port):
-                logger.info("Found ToolHive", host=host, port=port)
-                return port
+            try:
+                async with httpx.AsyncClient(timeout=1.0) as client:
+                    response = await client.get(f"http://{host}:{port}/api/v1beta/version")
+                    response.raise_for_status()
+
+                    # Validate that the response is actually from ToolHive
+                    try:
+                        data = response.json()
+                        if not isinstance(data, dict) or "version" not in data:
+                            logger.debug(
+                                "Port responded but not with ToolHive format",
+                                host=host,
+                                port=port,
+                                response=data,
+                            )
+                            continue
+
+                        version = data["version"].replace("v", "")
+                        thv_version_port.append((version, port))
+                        logger.info("Found ToolHive", host=host, port=port, version=version)
+                    except (ValueError, KeyError):
+                        logger.debug(
+                            "Port responded but could not parse JSON", host=host, port=port
+                        )
+                        continue
+            except (httpx.HTTPError, OSError):
+                continue
+
+        # Parse once, sort by Version objects
+        thv_version_port_parsed = []
+        for v, p in thv_version_port:
+            try:
+                parsed_version = Version.parse(v)
+                thv_version_port_parsed.append((parsed_version, p))
+            except (ValueError, TypeError) as e:
+                logger.warning("Invalid semver version, skipping", version=v, port=p, error=str(e))
+                continue
+
+        thv_version_port_parsed.sort(key=lambda x: x[0], reverse=True)
+
+        if len(thv_version_port_parsed) > 0:
+            return thv_version_port_parsed[0][1]
 
         # If no port found, raise an error
         raise ConnectionError(
@@ -327,7 +368,7 @@ class ToolhiveClient:
 
         return wrapper
 
-    def _is_toolhive_available(self, host: str, port: int) -> bool:
+    def _is_toolhive_available(self, host: str, port: int) -> tuple[str, bool]:
         """Check if ToolHive is available at the given host and port."""
         try:
             response = httpx.get(f"http://{host}:{port}/api/v1beta/version", timeout=1.0)
@@ -344,13 +385,13 @@ class ToolhiveClient:
                         port=port,
                         response=data,
                     )
-                    return False
-                return True
+                    return "", False
+                return data["version"], True
             except (ValueError, KeyError):
                 logger.debug("Port responded but could not parse JSON", host=host, port=port)
-                return False
+                return "", False
         except (httpx.HTTPError, OSError):
-            return False
+            return "", False
 
     def _scan_for_toolhive(self, host: str, scan_port_start: int, scan_port_end: int) -> int:
         """Scan for ToolHive in the specified port range."""
@@ -358,10 +399,28 @@ class ToolhiveClient:
             "Scanning for ToolHive", host=host, port_range=f"{scan_port_start}-{scan_port_end}"
         )
 
+        thv_version_port: list[tuple[str, int]] = []
         for port in range(scan_port_start, scan_port_end + 1):
-            if self._is_toolhive_available(host, port):
-                logger.info("Found ToolHive", host=host, port=port)
-                return port
+            version, thv_available = self._is_toolhive_available(host, port)
+            if thv_available:
+                version = version.replace("v", "")
+                thv_version_port.append((version, port))
+                logger.info("Found ToolHive", host=host, port=port, version=version)
+
+        # Parse once, sort by Version objects
+        thv_version_port_parsed = []
+        for v, p in thv_version_port:
+            try:
+                parsed_version = Version.parse(v)
+                thv_version_port_parsed.append((parsed_version, p))
+            except (ValueError, TypeError) as e:
+                logger.warning("Invalid semver version, skipping", version=v, port=p, error=str(e))
+                continue
+
+        thv_version_port_parsed.sort(key=lambda x: x[0], reverse=True)
+
+        if len(thv_version_port_parsed) > 0:
+            return thv_version_port_parsed[0][1]
 
         # If no port found, raise an error
         raise ConnectionError(

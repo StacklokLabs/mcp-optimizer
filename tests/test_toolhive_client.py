@@ -39,7 +39,10 @@ def toolhive_client(monkeypatch):
         return 8080  # Force return of 8080 for testing
 
     def mock_is_toolhive_available(self, host, port):
-        return port == 8080  # Only consider 8080 as available
+        # Return (version, bool) tuple as per new signature
+        if port == 8080:
+            return ("1.0.0", True)
+        return ("", False)
 
     # Mock the methods before creating the client
     monkeypatch.setattr(
@@ -160,7 +163,10 @@ async def test_context_manager(monkeypatch):
         return 8080  # Force return of 8080 for testing
 
     def mock_is_toolhive_available(self, host, port):
-        return port == 8080  # Only consider 8080 as available
+        # Return (version, bool) tuple as per new signature
+        if port == 8080:
+            return ("1.0.0", True)
+        return ("", False)
 
     # Mock the methods before creating the client
     monkeypatch.setattr(
@@ -196,7 +202,10 @@ async def test_connect_disconnect(monkeypatch):
         return 8080  # Force return of 8080 for testing
 
     def mock_is_toolhive_available(self, host, port):
-        return port == 8080  # Only consider 8080 as available
+        # Return (version, bool) tuple as per new signature
+        if port == 8080:
+            return ("1.0.0", True)
+        return ("", False)
 
     # Mock the methods before creating the client
     monkeypatch.setattr(
@@ -238,7 +247,10 @@ async def test_client_lazy_initialization(monkeypatch):
         return 8080  # Force return of 8080 for testing
 
     def mock_is_toolhive_available(self, host, port):
-        return port == 8080  # Only consider 8080 as available
+        # Return (version, bool) tuple as per new signature
+        if port == 8080:
+            return ("1.0.0", True)
+        return ("", False)
 
     # Mock the methods before creating the client
     monkeypatch.setattr(
@@ -274,7 +286,7 @@ def test_port_scanning_not_available(monkeypatch):
     """Test port scanning when no ToolHive is available."""
 
     def mock_is_toolhive_available(self, host, port):
-        return False
+        return ("", False)
 
     # Mock the port checking method
     monkeypatch.setattr(
@@ -301,7 +313,10 @@ def test_port_scanning_finds_port(monkeypatch):
     """Test port scanning when ToolHive is found."""
 
     def mock_is_toolhive_available(self, host, port):
-        return port == 50050  # Simulate finding ToolHive at port 50050
+        # Simulate finding ToolHive at port 50050
+        if port == 50050:
+            return ("1.0.0", True)
+        return ("", False)
 
     # Mock the port checking method
     monkeypatch.setattr(
@@ -328,8 +343,11 @@ def test_fallback_to_port_scanning(monkeypatch):
 
     def mock_is_toolhive_available(self, host, port):
         if port == 8080:  # Provided port is not available
-            return False
-        return port == 50075  # But ToolHive is found at port 50075
+            return ("", False)
+        # But ToolHive is found at port 50075
+        if port == 50075:
+            return ("1.0.0", True)
+        return ("", False)
 
     # Mock the port checking method
     monkeypatch.setattr(
@@ -369,7 +387,9 @@ def test_is_toolhive_available_validates_response_format(monkeypatch):
     mock_response_wrong_format.json.return_value = {"status": "ok", "service": "multipass"}
 
     monkeypatch.setattr(httpx, "get", Mock(return_value=mock_response_wrong_format))
-    assert client._is_toolhive_available("localhost", 50051) is False
+    version, available = client._is_toolhive_available("localhost", 50051)
+    assert available is False
+    assert version == ""
 
     # Test case 2: Service returns 200 OK with proper ToolHive version format
     mock_response_toolhive = Mock()
@@ -377,7 +397,9 @@ def test_is_toolhive_available_validates_response_format(monkeypatch):
     mock_response_toolhive.json.return_value = {"version": "v0.1.0"}
 
     monkeypatch.setattr(httpx, "get", Mock(return_value=mock_response_toolhive))
-    assert client._is_toolhive_available("localhost", 50056) is True
+    version, available = client._is_toolhive_available("localhost", 50056)
+    assert available is True
+    assert version == "v0.1.0"
 
     # Test case 3: Service returns 200 OK but not valid JSON
     mock_response_not_json = Mock()
@@ -385,7 +407,9 @@ def test_is_toolhive_available_validates_response_format(monkeypatch):
     mock_response_not_json.json.side_effect = ValueError("Invalid JSON")
 
     monkeypatch.setattr(httpx, "get", Mock(return_value=mock_response_not_json))
-    assert client._is_toolhive_available("localhost", 50051) is False
+    version, available = client._is_toolhive_available("localhost", 50051)
+    assert available is False
+    assert version == ""
 
     # Test case 4: Service returns 200 OK but response is not a dict (e.g., a list)
     mock_response_not_dict = Mock()
@@ -393,11 +417,15 @@ def test_is_toolhive_available_validates_response_format(monkeypatch):
     mock_response_not_dict.json.return_value = ["version", "v0.1.0"]
 
     monkeypatch.setattr(httpx, "get", Mock(return_value=mock_response_not_dict))
-    assert client._is_toolhive_available("localhost", 50051) is False
+    version, available = client._is_toolhive_available("localhost", 50051)
+    assert available is False
+    assert version == ""
 
     # Test case 5: Connection error (port not listening)
     monkeypatch.setattr(httpx, "get", Mock(side_effect=httpx.ConnectError("Connection refused")))
-    assert client._is_toolhive_available("localhost", 50051) is False
+    version, available = client._is_toolhive_available("localhost", 50051)
+    assert available is False
+    assert version == ""
 
     # Test case 6: HTTP error (404, 500, etc.)
     monkeypatch.setattr(
@@ -405,7 +433,9 @@ def test_is_toolhive_available_validates_response_format(monkeypatch):
         "get",
         Mock(side_effect=httpx.HTTPStatusError("404 Not Found", request=Mock(), response=Mock())),
     )
-    assert client._is_toolhive_available("localhost", 50051) is False
+    version, available = client._is_toolhive_available("localhost", 50051)
+    assert available is False
+    assert version == ""
 
 
 # Tests for get_workload_details (T003)

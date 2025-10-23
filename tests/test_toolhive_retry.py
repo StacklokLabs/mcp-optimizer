@@ -19,7 +19,10 @@ def retry_client(monkeypatch):
         return 50001
 
     def mock_is_toolhive_available(self, host, port):
-        return port == 50001
+        # Return (version, bool) tuple as per new signature
+        if port == 50001:
+            return ("1.0.0", True)
+        return ("", False)
 
     monkeypatch.setattr(
         "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._scan_for_toolhive",
@@ -56,20 +59,22 @@ class TestPortRediscovery:
             call_count += 1
             # During init: port 50001 is available (first call)
             if call_count == 1:
-                return port == 50001
-            return False
+                if port == 50001:
+                    return ("1.0.0", True)
+                return ("", False)
+            return ("", False)
 
-        async def mock_is_toolhive_available_async(self, host, port):
-            # During rediscovery: 50001 unavailable, 50002 available
-            return port == 50002
+        async def mock_scan_for_toolhive_async(self, host, start_port, end_port):
+            # During rediscovery: return port 50002
+            return 50002
 
         monkeypatch.setattr(
             "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available",
             mock_is_toolhive_available,
         )
         monkeypatch.setattr(
-            "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available_async",
-            mock_is_toolhive_available_async,
+            "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._scan_for_toolhive_async",
+            mock_scan_for_toolhive_async,
         )
 
         client = ToolhiveClient(
@@ -98,18 +103,21 @@ class TestPortRediscovery:
         """Test rediscovery when ToolHive is still on the same port."""
 
         def mock_is_toolhive_available(self, host, port):
-            return port == 50001
+            if port == 50001:
+                return ("1.0.0", True)
+            return ("", False)
 
-        async def mock_is_toolhive_available_async(self, host, port):
-            return port == 50001
+        async def mock_scan_for_toolhive_async(self, host, start_port, end_port):
+            # During rediscovery: return same port 50001
+            return 50001
 
         monkeypatch.setattr(
             "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available",
             mock_is_toolhive_available,
         )
         monkeypatch.setattr(
-            "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available_async",
-            mock_is_toolhive_available_async,
+            "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._scan_for_toolhive_async",
+            mock_scan_for_toolhive_async,
         )
 
         client = ToolhiveClient(
@@ -136,20 +144,24 @@ class TestPortRediscovery:
             call_count += 1
             # During init: port 50001 is available
             if call_count <= 1:
-                return port == 50001
-            return False
+                if port == 50001:
+                    return ("1.0.0", True)
+                return ("", False)
+            return ("", False)
 
-        async def mock_is_toolhive_available_async(self, host, port):
-            # During rediscovery: no ports available
-            return False
+        async def mock_scan_for_toolhive_async(self, host, start_port, end_port):
+            # During rediscovery: no ports available - raise ConnectionError
+            raise ConnectionError(
+                f"ToolHive not found on {host} in port range {start_port}-{end_port}"
+            )
 
         monkeypatch.setattr(
             "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available",
             mock_is_toolhive_available,
         )
         monkeypatch.setattr(
-            "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available_async",
-            mock_is_toolhive_available_async,
+            "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._scan_for_toolhive_async",
+            mock_scan_for_toolhive_async,
         )
 
         client = ToolhiveClient(
@@ -362,7 +374,9 @@ class TestRetryLogic:
 
         # Create a client with more retries for this test
         def mock_is_toolhive_available(self, host, port):
-            return port == 50001
+            if port == 50001:
+                return ("1.0.0", True)
+            return ("", False)
 
         monkeypatch.setattr(
             "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available",
@@ -629,7 +643,9 @@ class TestRetryConfiguration:
         """Test custom max_retries configuration."""
 
         def mock_is_toolhive_available(self, host, port):
-            return port == 50001
+            if port == 50001:
+                return ("1.0.0", True)
+            return ("", False)
 
         monkeypatch.setattr(
             "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available",
@@ -653,7 +669,9 @@ class TestRetryConfiguration:
         """Test custom backoff configuration."""
 
         def mock_is_toolhive_available(self, host, port):
-            return port == 50001
+            if port == 50001:
+                return ("1.0.0", True)
+            return ("", False)
 
         monkeypatch.setattr(
             "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available",
@@ -678,7 +696,9 @@ class TestRetryConfiguration:
         """Test that initial port is stored for rediscovery."""
 
         def mock_is_toolhive_available(self, host, port):
-            return port == 50001
+            if port == 50001:
+                return ("1.0.0", True)
+            return ("", False)
 
         monkeypatch.setattr(
             "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available",

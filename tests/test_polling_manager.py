@@ -33,7 +33,10 @@ def toolhive_client(monkeypatch):
         return 8080  # Force return of 8080 for testing
 
     def mock_is_toolhive_available(self, host, port):
-        return port == 8080  # Only consider 8080 as available
+        # Return (version, bool) tuple as per new signature
+        if port == 8080:
+            return ("1.0.0", True)
+        return ("", False)
 
     # Mock the methods before creating the client
     monkeypatch.setattr(
