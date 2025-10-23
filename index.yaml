@@ -2,6 +2,26 @@ apiVersion: v1
 entries:
   mcp-optimizer:
   - apiVersion: v2
+    appVersion: 0.0.3
+    created: "2025-10-23T11:08:47.204052079Z"
+    description: A Helm chart for deploying MCP-Optimizer MCP Server in Kubernetes
+    digest: 88bbcb55b4d4b7f4412bc8c2f35a25d935104c06679656a4299789160a65f984
+    home: https://github.com/StacklokLabs/mcp-optimizer
+    keywords:
+    - mcp
+    - mcp-optimizer
+    - toolhive
+    - kubernetes
+    maintainers:
+    - name: MCP-Optimizer Team
+    name: mcp-optimizer
+    sources:
+    - https://github.com/StacklokLabs/mcp-optimizer
+    type: application
+    urls:
+    - https://github.com/StacklokLabs/mcp-optimizer/releases/download/mcp-optimizer-0.0.3/mcp-optimizer-0.0.3.tgz
+    version: 0.0.3
+  - apiVersion: v2
     appVersion: 0.0.2
     created: "2025-10-23T09:59:43.758866027Z"
     description: A Helm chart for deploying MCP-Optimizer MCP Server in Kubernetes
@@ -21,4 +41,4 @@ entries:
     urls:
     - https://github.com/StacklokLabs/mcp-optimizer/releases/download/mcp-optimizer-0.0.2/mcp-optimizer-0.0.2.tgz
     version: 0.0.2
-generated: "2025-10-23T09:59:43.758870557Z"
+generated: "2025-10-23T11:08:47.204060615Z"
