@@ -125,7 +125,7 @@ class MCPServerClient:
         proxy_mode = self._determine_proxy_mode()
 
         logger.info(
-            f"Using {proxy_mode} client for workload",
+            f"Using {proxy_mode} client for workload '{self.workload.name}'",
             workload=self.workload.name,
             proxy_mode_field=self.workload.proxy_mode,
             url=self.workload.url,
@@ -173,16 +173,42 @@ class MCPServerClient:
         self, operation: Callable[[ClientSession], Awaitable]
     ) -> Any:
         """Execute operation with streamable HTTP session."""
+        logger.debug(
+            f"Establishing streamable HTTP session for workload '{self.workload.name}'",
+            workload=self.workload.name,
+            url=self.workload.url,
+        )
         async with streamablehttp_client(self.workload.url) as (read_stream, write_stream, _):
             async with ClientSession(read_stream, write_stream) as session:
+                logger.info(
+                    f"Initializing MCP session for workload '{self.workload.name}'",
+                    workload=self.workload.name,
+                )
                 await session.initialize()
+                logger.debug(
+                    f"MCP session initialized successfully for workload '{self.workload.name}'",
+                    workload=self.workload.name,
+                )
                 return await operation(session)
 
     async def _execute_sse_session(self, operation: Callable[[ClientSession], Awaitable]) -> Any:
         """Execute operation with SSE session."""
+        logger.debug(
+            f"Establishing SSE session for workload '{self.workload.name}'",
+            workload=self.workload.name,
+            url=self.workload.url,
+        )
         async with sse_client(self.workload.url) as (read_stream, write_stream):
             async with ClientSession(read_stream, write_stream) as session:
+                logger.info(
+                    f"Initializing MCP session for workload '{self.workload.name}'",
+                    workload=self.workload.name,
+                )
                 await session.initialize()
+                logger.debug(
+                    f"MCP session initialized successfully for workload '{self.workload.name}'",
+                    workload=self.workload.name,
+                )
                 return await operation(session)
 
     async def list_tools(self) -> ListToolsResult:
@@ -192,7 +218,16 @@ class MCPServerClient:
         Returns:
             ListToolsResult: Available tools from the MCP server
         """
-        return await self._execute_with_session(lambda session: session.list_tools())
+        logger.debug(
+            f"Listing tools for workload '{self.workload.name}'", workload=self.workload.name
+        )
+        result = await self._execute_with_session(lambda session: session.list_tools())
+        logger.debug(
+            f"Retrieved {len(result.tools)} tools from workload '{self.workload.name}'",
+            workload=self.workload.name,
+            tool_count=len(result.tools),
+        )
+        return result
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> CallToolResult:
         """
@@ -205,6 +240,17 @@ class MCPServerClient:
         Returns:
             CallToolResult: Result of the tool execution
         """
-        return await self._execute_with_session(
+        logger.debug(
+            f"Calling tool '{tool_name}' on workload '{self.workload.name}'",
+            workload=self.workload.name,
+            tool_name=tool_name,
+        )
+        result = await self._execute_with_session(
             lambda session: session.call_tool(tool_name, arguments)
         )
+        logger.debug(
+            f"Tool '{tool_name}' call completed on workload '{self.workload.name}'",
+            workload=self.workload.name,
+            tool_name=tool_name,
+        )
+        return result
