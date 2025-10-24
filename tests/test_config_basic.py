@@ -107,3 +107,61 @@ def test_runtime_mode_invalid():
 
     with pytest.raises(ValidationError, match="Input should be 'docker' or 'k8s'"):
         MCPOptimizerConfig(runtime_mode="kubernetes")
+
+
+def test_embedding_threads_default():
+    """Test that embedding_threads defaults to 2."""
+    config = MCPOptimizerConfig()
+    assert config.embedding_threads == 2
+
+
+def test_embedding_threads_none():
+    """Test that embedding_threads can be set to None (use all CPU cores)."""
+    config = MCPOptimizerConfig(embedding_threads=None)
+    assert config.embedding_threads is None
+
+
+def test_embedding_threads_boundaries():
+    """Test embedding_threads validation with boundary values (1, 16)."""
+    # Test lower boundary (1)
+    config_min = MCPOptimizerConfig(embedding_threads=1)
+    assert config_min.embedding_threads == 1
+
+    # Test upper boundary (16)
+    config_max = MCPOptimizerConfig(embedding_threads=16)
+    assert config_max.embedding_threads == 16
+
+    # Test valid middle value
+    config_mid = MCPOptimizerConfig(embedding_threads=8)
+    assert config_mid.embedding_threads == 8
+
+
+def test_embedding_threads_invalid_values():
+    """Test that invalid embedding_threads values are rejected."""
+    # Test below lower boundary (0)
+    with pytest.raises(ValidationError, match="greater than or equal to 1"):
+        MCPOptimizerConfig(embedding_threads=0)
+
+    # Test negative value
+    with pytest.raises(ValidationError, match="greater than or equal to 1"):
+        MCPOptimizerConfig(embedding_threads=-1)
+
+    # Test above upper boundary (17)
+    with pytest.raises(ValidationError, match="less than or equal to 16"):
+        MCPOptimizerConfig(embedding_threads=17)
+
+    # Test far above upper boundary
+    with pytest.raises(ValidationError, match="less than or equal to 16"):
+        MCPOptimizerConfig(embedding_threads=100)
+
+
+def test_embedding_threads_string_conversion():
+    """Test that embedding_threads handles string-to-int conversion."""
+    # Test string to int conversion
+    config = MCPOptimizerConfig(embedding_threads="4")
+    assert config.embedding_threads == 4
+    assert isinstance(config.embedding_threads, int)
+
+    # Test invalid string conversion
+    with pytest.raises(ValidationError):
+        MCPOptimizerConfig(embedding_threads="invalid")

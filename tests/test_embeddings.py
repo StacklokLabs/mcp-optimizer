@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
+from mcp_optimizer.config import MCPOptimizerConfig
 from mcp_optimizer.embeddings import EmbeddingManager
 
 
@@ -36,7 +37,9 @@ class TestEmbeddingManager:
         model = manager.model
         assert model == mock_model_instance
         assert manager._model == mock_model_instance
-        mock_text_embedding.assert_called_once_with(model_name="BAAI/bge-small-en-v1.5")
+        mock_text_embedding.assert_called_once_with(
+            model_name="BAAI/bge-small-en-v1.5", threads=None
+        )
 
         # Second access should reuse existing model
         model2 = manager.model
@@ -145,3 +148,94 @@ class TestEmbeddingManager:
         model2 = manager.model
         assert model2 == mock_model
         assert mock_text_embedding.call_count == 1  # Should not create new model
+
+    @patch("mcp_optimizer.embeddings.TextEmbedding")
+    def test_initialization_with_explicit_threads(self, mock_text_embedding):
+        """Test EmbeddingManager initialization with explicit thread count."""
+        mock_model_instance = Mock()
+        mock_text_embedding.return_value = mock_model_instance
+
+        # Test with threads=2
+        manager = EmbeddingManager(
+            model_name="BAAI/bge-small-en-v1.5", enable_cache=True, threads=2
+        )
+        assert manager.threads == 2
+
+        # Access model to trigger loading
+        model = manager.model
+        assert model == mock_model_instance
+        mock_text_embedding.assert_called_once_with(
+            model_name="BAAI/bge-small-en-v1.5", threads=2
+        )
+
+    @patch("mcp_optimizer.embeddings.TextEmbedding")
+    def test_initialization_with_boundary_threads(self, mock_text_embedding):
+        """Test EmbeddingManager initialization with boundary thread values."""
+        mock_model_instance = Mock()
+        mock_text_embedding.return_value = mock_model_instance
+
+        # Test with threads=1 (lower boundary)
+        manager_min = EmbeddingManager(
+            model_name="BAAI/bge-small-en-v1.5", enable_cache=True, threads=1
+        )
+        assert manager_min.threads == 1
+        _ = manager_min.model  # Trigger lazy loading
+        assert mock_text_embedding.call_count == 1
+        mock_text_embedding.assert_called_with(model_name="BAAI/bge-small-en-v1.5", threads=1)
+
+        # Test with threads=16 (upper boundary)
+        mock_text_embedding.reset_mock()
+        manager_max = EmbeddingManager(
+            model_name="BAAI/bge-small-en-v1.5", enable_cache=True, threads=16
+        )
+        assert manager_max.threads == 16
+        _ = manager_max.model  # Trigger lazy loading
+        assert mock_text_embedding.call_count == 1
+        mock_text_embedding.assert_called_with(model_name="BAAI/bge-small-en-v1.5", threads=16)
+
+    @patch("mcp_optimizer.embeddings.TextEmbedding")
+    def test_config_integration_with_threads(self, mock_text_embedding):
+        """Test that config properly passes threading to EmbeddingManager."""
+        mock_model_instance = Mock()
+        mock_text_embedding.return_value = mock_model_instance
+
+        # Test with config default (threads=2)
+        config_default = MCPOptimizerConfig()
+        manager_default = EmbeddingManager(
+            model_name=config_default.embedding_model_name,
+            enable_cache=config_default.enable_embedding_cache,
+            threads=config_default.embedding_threads,
+        )
+        assert manager_default.threads == 2
+        _ = manager_default.model  # Trigger lazy loading
+        mock_text_embedding.assert_called_once_with(
+            model_name="BAAI/bge-small-en-v1.5", threads=2
+        )
+
+        # Test with config set to None
+        mock_text_embedding.reset_mock()
+        config_none = MCPOptimizerConfig(embedding_threads=None)
+        manager_none = EmbeddingManager(
+            model_name=config_none.embedding_model_name,
+            enable_cache=config_none.enable_embedding_cache,
+            threads=config_none.embedding_threads,
+        )
+        assert manager_none.threads is None
+        _ = manager_none.model  # Trigger lazy loading
+        mock_text_embedding.assert_called_once_with(
+            model_name="BAAI/bge-small-en-v1.5", threads=None
+        )
+
+        # Test with config set to custom value (8)
+        mock_text_embedding.reset_mock()
+        config_custom = MCPOptimizerConfig(embedding_threads=8)
+        manager_custom = EmbeddingManager(
+            model_name=config_custom.embedding_model_name,
+            enable_cache=config_custom.enable_embedding_cache,
+            threads=config_custom.embedding_threads,
+        )
+        assert manager_custom.threads == 8
+        _ = manager_custom.model  # Trigger lazy loading
+        mock_text_embedding.assert_called_once_with(
+            model_name="BAAI/bge-small-en-v1.5", threads=8
+        )

@@ -157,7 +157,9 @@ def configure_polling(toolhive_client: ToolhiveClient, config: MCPOptimizerConfi
     # Create database and embedding manager with config values
     db_config = DatabaseConfig(database_url=config.async_db_url)
     embedding_manager_local = EmbeddingManager(
-        model_name=config.embedding_model_name, enable_cache=config.enable_embedding_cache
+        model_name=config.embedding_model_name,
+        enable_cache=config.enable_embedding_cache,
+        threads=config.embedding_threads,
     )
 
     _polling_state.polling_manager = PollingManager(
