@@ -6,9 +6,10 @@ from unittest.mock import AsyncMock, Mock
 
 import httpx
 import pytest
+from semver import Version
 
 from mcp_optimizer.toolhive.api_models.v1 import WorkloadListResponse
-from mcp_optimizer.toolhive.toolhive_client import ToolhiveClient
+from mcp_optimizer.toolhive.toolhive_client import ToolhiveClient, ToolhiveScanError
 
 
 @pytest.fixture
@@ -35,14 +36,14 @@ def mock_workload_response():
 def toolhive_client(monkeypatch):
     """Create a ToolhiveClient for testing."""
 
-    def mock_scan_for_toolhive(self, host, start_port, end_port):
+    async def mock_scan_for_toolhive(self, host, start_port, end_port):
         return 8080  # Force return of 8080 for testing
 
-    def mock_is_toolhive_available(self, host, port):
-        # Return (version, bool) tuple as per new signature
+    async def mock_is_toolhive_available(self, host, port):
+        # Return (Version, port) tuple as per new signature
         if port == 8080:
-            return ("1.0.0", True)
-        return ("", False)
+            return (Version.parse("1.0.0"), 8080)
+        raise ToolhiveScanError(f"Port {port} not available")
 
     # Mock the methods before creating the client
     monkeypatch.setattr(
@@ -159,23 +160,15 @@ async def test_http_error_handling(toolhive_client):
 async def test_context_manager(monkeypatch):
     """Test using ToolhiveClient as context manager (backward compatibility)."""
 
-    def mock_scan_for_toolhive(self, host, start_port, end_port):
-        return 8080  # Force return of 8080 for testing
+    def mock_discover_port(self, port):
+        # Skip the async discovery during init
+        self.thv_port = 8080
+        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
 
-    def mock_is_toolhive_available(self, host, port):
-        # Return (version, bool) tuple as per new signature
-        if port == 8080:
-            return ("1.0.0", True)
-        return ("", False)
-
-    # Mock the methods before creating the client
+    # Mock the discovery to avoid asyncio.run in async context
     monkeypatch.setattr(
-        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._scan_for_toolhive",
-        mock_scan_for_toolhive,
-    )
-    monkeypatch.setattr(
-        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available",
-        mock_is_toolhive_available,
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
+        mock_discover_port,
     )
 
     async with ToolhiveClient(
@@ -198,23 +191,15 @@ async def test_context_manager(monkeypatch):
 async def test_connect_disconnect(monkeypatch):
     """Test explicit connect and disconnect methods."""
 
-    def mock_scan_for_toolhive(self, host, start_port, end_port):
-        return 8080  # Force return of 8080 for testing
+    def mock_discover_port(self, port):
+        # Skip the async discovery during init
+        self.thv_port = 8080
+        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
 
-    def mock_is_toolhive_available(self, host, port):
-        # Return (version, bool) tuple as per new signature
-        if port == 8080:
-            return ("1.0.0", True)
-        return ("", False)
-
-    # Mock the methods before creating the client
+    # Mock the discovery to avoid asyncio.run in async context
     monkeypatch.setattr(
-        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._scan_for_toolhive",
-        mock_scan_for_toolhive,
-    )
-    monkeypatch.setattr(
-        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available",
-        mock_is_toolhive_available,
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
+        mock_discover_port,
     )
 
     client = ToolhiveClient(
@@ -243,23 +228,15 @@ async def test_connect_disconnect(monkeypatch):
 async def test_client_lazy_initialization(monkeypatch):
     """Test that accessing client property creates client lazily."""
 
-    def mock_scan_for_toolhive(self, host, start_port, end_port):
-        return 8080  # Force return of 8080 for testing
+    def mock_discover_port(self, port):
+        # Skip the async discovery during init
+        self.thv_port = 8080
+        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
 
-    def mock_is_toolhive_available(self, host, port):
-        # Return (version, bool) tuple as per new signature
-        if port == 8080:
-            return ("1.0.0", True)
-        return ("", False)
-
-    # Mock the methods before creating the client
+    # Mock the discovery to avoid asyncio.run in async context
     monkeypatch.setattr(
-        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._scan_for_toolhive",
-        mock_scan_for_toolhive,
-    )
-    monkeypatch.setattr(
-        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available",
-        mock_is_toolhive_available,
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
+        mock_discover_port,
     )
 
     client = ToolhiveClient(
@@ -285,8 +262,8 @@ async def test_client_lazy_initialization(monkeypatch):
 def test_port_scanning_not_available(monkeypatch):
     """Test port scanning when no ToolHive is available."""
 
-    def mock_is_toolhive_available(self, host, port):
-        return ("", False)
+    async def mock_is_toolhive_available(self, host, port):
+        raise ToolhiveScanError(f"Port {port} not available")
 
     # Mock the port checking method
     monkeypatch.setattr(
@@ -312,11 +289,11 @@ def test_port_scanning_not_available(monkeypatch):
 def test_port_scanning_finds_port(monkeypatch):
     """Test port scanning when ToolHive is found."""
 
-    def mock_is_toolhive_available(self, host, port):
+    async def mock_is_toolhive_available(self, host, port):
         # Simulate finding ToolHive at port 50050
         if port == 50050:
-            return ("1.0.0", True)
-        return ("", False)
+            return (Version.parse("1.0.0"), 50050)
+        raise ToolhiveScanError(f"Port {port} not available")
 
     # Mock the port checking method
     monkeypatch.setattr(
@@ -341,13 +318,13 @@ def test_port_scanning_finds_port(monkeypatch):
 def test_fallback_to_port_scanning(monkeypatch):
     """Test fallback to port scanning when provided port is not available."""
 
-    def mock_is_toolhive_available(self, host, port):
+    async def mock_is_toolhive_available(self, host, port):
         if port == 8080:  # Provided port is not available
-            return ("", False)
+            raise ToolhiveScanError(f"Port {port} not available")
         # But ToolHive is found at port 50075
         if port == 50075:
-            return ("1.0.0", True)
-        return ("", False)
+            return (Version.parse("1.0.0"), 50075)
+        raise ToolhiveScanError(f"Port {port} not available")
 
     # Mock the port checking method
     monkeypatch.setattr(
@@ -369,73 +346,143 @@ def test_fallback_to_port_scanning(monkeypatch):
     assert client.base_url == "http://127.0.0.1:50075"
 
 
-def test_is_toolhive_available_validates_response_format(monkeypatch):
+@pytest.mark.asyncio
+async def test_is_toolhive_available_validates_response_format(monkeypatch):  # noqa: C901
     """Test that _is_toolhive_available properly validates the response is from ToolHive.
 
     This prevents false positives when another service (like Ubuntu Multipass)
     is running on a port in the scan range and returns a 200 OK but with
     a different response format.
     """
-    import httpx
-
     client = ToolhiveClient.__new__(ToolhiveClient)
+    client.thv_host = "localhost"
 
     # Test case 1: Service returns 200 OK but response has no 'version' field
-    # (e.g., Ubuntu Multipass or another service)
     mock_response_wrong_format = Mock()
     mock_response_wrong_format.raise_for_status = Mock()
     mock_response_wrong_format.json.return_value = {"status": "ok", "service": "multipass"}
 
-    monkeypatch.setattr(httpx, "get", Mock(return_value=mock_response_wrong_format))
-    version, available = client._is_toolhive_available("localhost", 50051)
-    assert available is False
-    assert version == ""
+    class MockAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def get(self, *args, **kwargs):
+            return mock_response_wrong_format
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient)
+    with pytest.raises(ToolhiveScanError, match="did not respond with valid JSON"):
+        await client._is_toolhive_available("localhost", 50051)
 
     # Test case 2: Service returns 200 OK with proper ToolHive version format
     mock_response_toolhive = Mock()
     mock_response_toolhive.raise_for_status = Mock()
     mock_response_toolhive.json.return_value = {"version": "v0.1.0"}
 
-    monkeypatch.setattr(httpx, "get", Mock(return_value=mock_response_toolhive))
-    version, available = client._is_toolhive_available("localhost", 50056)
-    assert available is True
-    assert version == "v0.1.0"
+    class MockAsyncClient2:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def get(self, *args, **kwargs):
+            return mock_response_toolhive
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient2)
+    version, port = await client._is_toolhive_available("localhost", 50056)
+    assert port == 50056
+    assert version == Version.parse("0.1.0")
 
     # Test case 3: Service returns 200 OK but not valid JSON
     mock_response_not_json = Mock()
     mock_response_not_json.raise_for_status = Mock()
     mock_response_not_json.json.side_effect = ValueError("Invalid JSON")
 
-    monkeypatch.setattr(httpx, "get", Mock(return_value=mock_response_not_json))
-    version, available = client._is_toolhive_available("localhost", 50051)
-    assert available is False
-    assert version == ""
+    class MockAsyncClient3:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def get(self, *args, **kwargs):
+            return mock_response_not_json
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient3)
+    with pytest.raises(ToolhiveScanError, match="did not respond with valid JSON"):
+        await client._is_toolhive_available("localhost", 50051)
 
     # Test case 4: Service returns 200 OK but response is not a dict (e.g., a list)
     mock_response_not_dict = Mock()
     mock_response_not_dict.raise_for_status = Mock()
     mock_response_not_dict.json.return_value = ["version", "v0.1.0"]
 
-    monkeypatch.setattr(httpx, "get", Mock(return_value=mock_response_not_dict))
-    version, available = client._is_toolhive_available("localhost", 50051)
-    assert available is False
-    assert version == ""
+    class MockAsyncClient4:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def get(self, *args, **kwargs):
+            return mock_response_not_dict
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient4)
+    with pytest.raises(ToolhiveScanError, match="did not respond with valid JSON"):
+        await client._is_toolhive_available("localhost", 50051)
 
     # Test case 5: Connection error (port not listening)
-    monkeypatch.setattr(httpx, "get", Mock(side_effect=httpx.ConnectError("Connection refused")))
-    version, available = client._is_toolhive_available("localhost", 50051)
-    assert available is False
-    assert version == ""
+    class MockAsyncClient5:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def get(self, *args, **kwargs):
+            raise httpx.ConnectError("Connection refused")
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient5)
+    with pytest.raises(ToolhiveScanError, match="Error checking ToolHive availability"):
+        await client._is_toolhive_available("localhost", 50051)
 
     # Test case 6: HTTP error (404, 500, etc.)
-    monkeypatch.setattr(
-        httpx,
-        "get",
-        Mock(side_effect=httpx.HTTPStatusError("404 Not Found", request=Mock(), response=Mock())),
-    )
-    version, available = client._is_toolhive_available("localhost", 50051)
-    assert available is False
-    assert version == ""
+    class MockAsyncClient6:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def get(self, *args, **kwargs):
+            mock_response = Mock()
+            mock_response.status_code = 404
+            raise httpx.HTTPStatusError("404 Not Found", request=Mock(), response=mock_response)
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient6)
+    with pytest.raises(ToolhiveScanError, match="Error checking ToolHive availability"):
+        await client._is_toolhive_available("localhost", 50051)
 
 
 # Tests for get_workload_details (T003)

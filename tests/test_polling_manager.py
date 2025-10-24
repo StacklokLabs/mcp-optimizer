@@ -5,12 +5,13 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from semver import Version
 
 from mcp_optimizer.db.config import DatabaseConfig
 from mcp_optimizer.db.models import McpStatus, RegistryServer, WorkloadServer
 from mcp_optimizer.embeddings import EmbeddingManager
 from mcp_optimizer.polling_manager import PollingManager
-from mcp_optimizer.toolhive.toolhive_client import ToolhiveClient
+from mcp_optimizer.toolhive.toolhive_client import ToolhiveClient, ToolhiveScanError
 
 
 @pytest.fixture
@@ -29,14 +30,14 @@ def embedding_manager():
 def toolhive_client(monkeypatch):
     """Create a mock ToolhiveClient for testing."""
 
-    def mock_scan_for_toolhive(self, host, start_port, end_port):
+    async def mock_scan_for_toolhive(self, host, start_port, end_port):
         return 8080  # Force return of 8080 for testing
 
-    def mock_is_toolhive_available(self, host, port):
-        # Return (version, bool) tuple as per new signature
+    async def mock_is_toolhive_available(self, host, port):
+        # Return (Version, port) tuple as per new signature
         if port == 8080:
-            return ("1.0.0", True)
-        return ("", False)
+            return (Version.parse("1.0.0"), 8080)
+        raise ToolhiveScanError(f"Port {port} not available")
 
     # Mock the methods before creating the client
     monkeypatch.setattr(
