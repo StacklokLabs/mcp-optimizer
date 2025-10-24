@@ -1,6 +1,6 @@
 # Runtime Modes
 
-MCP-Optimizer supports two runtime modes for deploying and managing MCP servers:
+MCP Optimizer supports two runtime modes for deploying and managing MCP servers:
 
 ## Modes
 

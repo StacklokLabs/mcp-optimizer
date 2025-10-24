@@ -1,16 +1,16 @@
 # Connection Resilience
 
-MCP-Optimizer includes robust connection retry logic to handle scenarios where ToolHive (`thv serve`) becomes unavailable or restarts on a different port.
+MCP Optimizer includes robust connection retry logic to handle scenarios where ToolHive (`thv serve`) becomes unavailable or restarts on a different port.
 
 ## Overview
 
-When ToolHive restarts (e.g., after a crash or manual restart), it may bind to a different port within the configured range. MCP-Optimizer automatically detects connection failures and attempts to rediscover and reconnect to ToolHive, minimizing service interruptions.
+When ToolHive restarts (e.g., after a crash or manual restart), it may bind to a different port within the configured range. MCP Optimizer automatically detects connection failures and attempts to rediscover and reconnect to ToolHive, minimizing service interruptions.
 
 ## Features
 
 ### 1. Automatic Port Rediscovery
 
-When a connection failure is detected, MCP-Optimizer:
+When a connection failure is detected, MCP Optimizer:
 - Rescans the configured port range (default: 50000-50100)
 - Tries the initially configured port first (if specified)
 - Updates its internal connection details when a new port is found
@@ -28,7 +28,7 @@ To avoid overwhelming the system during extended outages:
 
 - Default: 100 retry attempts (approximately 100 minutes)
 - Configurable range: 1-500 attempts
-- After exhausting retries, MCP-Optimizer logs a critical error and exits gracefully
+- After exhausting retries, MCP Optimizer logs a critical error and exits gracefully
 
 ### 4. Comprehensive Coverage
 
@@ -65,7 +65,7 @@ mcp-optimizer \
 
 ### Configuration File
 
-These settings follow the standard MCP-Optimizer configuration hierarchy:
+These settings follow the standard MCP Optimizer configuration hierarchy:
 1. CLI options (highest priority)
 2. Environment variables
 3. Default values (lowest priority)
@@ -78,13 +78,13 @@ These settings follow the standard MCP-Optimizer configuration hierarchy:
 # Terminal 1: Start ToolHive
 thv serve
 
-# Terminal 2: Start MCP-Optimizer with defaults
+# Terminal 2: Start MCP Optimizer with defaults
 mcp-optimizer
 ```
 
 **Behavior:**
-- MCP-Optimizer connects to ToolHive
-- If ToolHive restarts, MCP-Optimizer retries for ~3-4 minutes
+- MCP Optimizer connects to ToolHive
+- If ToolHive restarts, MCP Optimizer retries for ~3-4 minutes
 - Exits if ToolHive doesn't come back online
 
 ### Example 2: Extended Retry Window
@@ -128,7 +128,7 @@ This tests the automatic port rediscovery feature:
 thv serve
 # Note the port (e.g., 50001)
 
-# Terminal 2: Start MCP-Optimizer
+# Terminal 2: Start MCP Optimizer
 mcp-optimizer
 
 # Terminal 1: Kill ToolHive
@@ -140,7 +140,7 @@ thv serve
 ```
 
 **Expected Result:**
-- MCP-Optimizer detects connection failure
+- MCP Optimizer detects connection failure
 - Logs: "ToolHive connection failed"
 - Logs: "Attempting to rediscover ToolHive port"
 - Logs: "Successfully rediscovered ToolHive on new port"
@@ -154,7 +154,7 @@ This tests the exponential backoff and ultimate failure handling:
 # Terminal 1: Start ToolHive
 thv serve
 
-# Terminal 2: Start MCP-Optimizer
+# Terminal 2: Start MCP Optimizer
 mcp-optimizer
 
 # Terminal 1: Kill ToolHive (don't restart)
@@ -162,7 +162,7 @@ pkill -f 'thv serve'
 ```
 
 **Expected Result:**
-- MCP-Optimizer detects connection failure
+- MCP Optimizer detects connection failure
 - Retries with increasing delays
 - Logs each attempt with backoff time
 - After 100 attempts (~100 minutes), logs critical error
@@ -176,7 +176,7 @@ This tests initial connection retry:
 # Make sure ToolHive is not running
 pkill -f 'thv serve'
 
-# Start MCP-Optimizer
+# Start MCP Optimizer
 mcp-optimizer
 
 # In another terminal, start ToolHive within retry window
@@ -184,14 +184,14 @@ thv serve
 ```
 
 **Expected Result:**
-- MCP-Optimizer attempts initial connection
+- MCP Optimizer attempts initial connection
 - Retries with exponential backoff
 - If ToolHive starts during retry window: connects and continues
 - If ToolHive doesn't start: exits after max retries
 
 ## Logging
 
-MCP-Optimizer provides detailed logging at each stage:
+MCP Optimizer provides detailed logging at each stage:
 
 ### Connection Failure
 ```
@@ -255,7 +255,7 @@ The polling manager also implements connection resilience:
 
 ## Troubleshooting
 
-### Problem: MCP-Optimizer exits too quickly
+### Problem: MCP Optimizer exits too quickly
 
 **Solution:** Increase retry attempts and/or backoff delays:
 ```bash
@@ -263,7 +263,7 @@ export TOOLHIVE_MAX_RETRIES=20
 export TOOLHIVE_MAX_BACKOFF=120.0
 ```
 
-### Problem: MCP-Optimizer takes too long to fail
+### Problem: MCP Optimizer takes too long to fail
 
 **Solution:** Decrease retry attempts:
 ```bash

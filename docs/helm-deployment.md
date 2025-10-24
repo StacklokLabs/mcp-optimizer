@@ -1,10 +1,10 @@
-# Deploying MCP-Optimizer with Helm
+# Deploying MCP Optimizer with Helm
 
-This guide walks you through deploying MCP-Optimizer in Kubernetes using the Helm chart.
+This guide walks you through deploying MCP Optimizer in Kubernetes using the Helm chart.
 
 ## Overview
 
-The MCP-Optimizer Helm chart deploys MCP-Optimizer as an MCPServer Custom Resource Definition (CRD) in your Kubernetes cluster. The ToolHive operator then manages the actual deployment, creating a pod that runs the MCP-Optimizer container.
+The MCP Optimizer Helm chart deploys MCP Optimizer as an MCPServer Custom Resource Definition (CRD) in your Kubernetes cluster. The ToolHive operator then manages the actual deployment, creating a pod that runs the MCP Optimizer container.
 
 ## Architecture
 
@@ -16,7 +16,7 @@ The MCP-Optimizer Helm chart deploys MCP-Optimizer as an MCPServer Custom Resour
 │  │          toolhive-system namespace                 │ │
 │  │                                                    │ │
 │  │  ┌──────────────┐         ┌──────────────┐       │ │
-│  │  │   MCP-Optimizer   │         │  ToolHive    │       │ │
+│  │  │   MCP Optimizer   │         │  ToolHive    │       │ │
 │  │  │  MCPServer   │────────>│  Operator    │       │ │
 │  │  │   (CRD)      │         │              │       │ │
 │  │  └──────────────┘         └──────┬───────┘       │ │
@@ -24,7 +24,7 @@ The MCP-Optimizer Helm chart deploys MCP-Optimizer as an MCPServer Custom Resour
 │  │                                   │ creates       │ │
 │  │                                   v               │ │
 │  │                          ┌──────────────┐        │ │
-│  │                          │   MCP-Optimizer   │        │ │
+│  │                          │   MCP Optimizer   │        │ │
 │  │                          │     Pod      │        │ │
 │  │                          │              │        │ │
 │  │                          │  queries K8s │        │ │
@@ -96,7 +96,7 @@ kubectl get crd mcpservers.toolhive.stacklok.dev
 
 ### Basic Installation
 
-Install MCP-Optimizer with default values:
+Install MCP Optimizer with default values:
 
 ```bash
 cd /path/to/mcp-optimizer
@@ -138,7 +138,7 @@ helm install mcp-optimizer ./helm/mcp-optimizer \
 ```yaml
 mcpserver:
   image:
-    repository: ghcr.io/your-org/mcp-optimizer
+    repository: ghcr.io/stackloklabs/mcp-optimizer
     tag: "0.1.0"
     pullPolicy: IfNotPresent
 ```
@@ -227,7 +227,7 @@ kubectl logs -l toolhive.stacklok.dev/mcpserver=mcp-optimizer -n toolhive-system
 kubectl logs -l toolhive.stacklok.dev/mcpserver=mcp-optimizer -n toolhive-system --tail=100
 ```
 
-### Test MCP-Optimizer Functionality
+### Test MCP Optimizer Functionality
 
 1. **Check that mcp-optimizer discovers MCPServers:**
 
@@ -293,7 +293,7 @@ helm rollback mcp-optimizer 2 -n toolhive-system
 
 ## Uninstallation
 
-To remove MCP-Optimizer:
+To remove MCP Optimizer:
 
 ```bash
 helm uninstall mcp-optimizer -n toolhive-system
@@ -445,7 +445,7 @@ helm install postgres bitnami/postgresql \
   -n default
 ```
 
-2. Configure MCP-Optimizer to use PostgreSQL:
+2. Configure MCP Optimizer to use PostgreSQL:
 ```yaml
 database:
   type: postgresql
@@ -484,7 +484,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/your-org/mcp-optimizer
+    repoURL: https://github.com/StacklokLabs/mcp-optimizer
     targetRevision: main
     path: helm/mcp-optimizer
     helm:
@@ -510,7 +510,7 @@ spec:
 ## Support
 
 For help and support:
-- GitHub Issues: https://github.com/your-org/mcp-optimizer/issues
-- Documentation: https://github.com/your-org/mcp-optimizer/docs
+- GitHub Issues: https://github.com/StacklokLabs/mcp-optimizer/issues
+- Documentation: https://github.com/StacklokLabs/mcp-optimizer/docs
 - ToolHive Support: https://github.com/stacklok/toolhive/issues
 

@@ -1,10 +1,10 @@
 # In-Cluster Authentication
 
-MCP-Optimizer automatically handles authentication when running inside a Kubernetes cluster by using the Kubernetes service account system.
+MCP Optimizer automatically handles authentication when running inside a Kubernetes cluster by using the Kubernetes service account system.
 
 ## How It Works
 
-When MCP-Optimizer runs as a Pod in Kubernetes:
+When MCP Optimizer runs as a Pod in Kubernetes:
 
 ### 1. Service Account Token
 
@@ -13,7 +13,7 @@ Kubernetes automatically mounts a service account token into every Pod at:
 /var/run/secrets/kubernetes.io/serviceaccount/token
 ```
 
-MCP-Optimizer detects this file and uses it for authentication:
+MCP Optimizer detects this file and uses it for authentication:
 ```python
 # Automatically loaded
 token = Path("/var/run/secrets/kubernetes.io/serviceaccount/token").read_text()
@@ -27,7 +27,7 @@ The cluster's CA certificate is mounted at:
 /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 ```
 
-MCP-Optimizer uses this for SSL verification when communicating with the Kubernetes API server:
+MCP Optimizer uses this for SSL verification when communicating with the Kubernetes API server:
 ```python
 # Automatically configured
 verify_ssl = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
@@ -39,7 +39,7 @@ Kubernetes injects environment variables into every Pod:
 - `KUBERNETES_SERVICE_HOST` - The API server hostname
 - `KUBERNETES_SERVICE_PORT_HTTPS` - The HTTPS port (typically 443)
 
-MCP-Optimizer automatically constructs the API server URL from these:
+MCP Optimizer automatically constructs the API server URL from these:
 ```python
 # Automatically done when RUNTIME_MODE=k8s and in-cluster
 api_url = f"https://{KUBERNETES_SERVICE_HOST}:{KUBERNETES_SERVICE_PORT_HTTPS}"
@@ -120,7 +120,7 @@ Standard Kubernetes environment variables (automatically injected):
 | `KUBERNETES_SERVICE_PORT_HTTPS` | HTTPS port | `443` |
 | `KUBERNETES_SERVICE_PORT` | Fallback port | `443` |
 
-MCP-Optimizer configuration (optional overrides):
+MCP Optimizer configuration (optional overrides):
 
 | Variable | Description | Default | Auto-detected? |
 |----------|-------------|---------|----------------|
@@ -169,7 +169,7 @@ roleRef:
 EOF
 ```
 
-### Step 2: Deploy MCP-Optimizer
+### Step 2: Deploy MCP Optimizer
 
 ```yaml
 apiVersion: apps/v1

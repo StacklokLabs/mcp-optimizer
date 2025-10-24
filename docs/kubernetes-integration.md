@@ -1,17 +1,17 @@
 # Kubernetes Integration and Installation Guide
 
-This guide covers deploying MCP-Optimizer and MCP servers in Kubernetes using the ToolHive operator, including configuration, installation, and client integration.
+This guide covers deploying MCP Optimizer and MCP servers in Kubernetes using the ToolHive operator, including configuration, installation, and client integration.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Quick Start](#quick-start)
 - [Prerequisites](#prerequisites)
-- [MCP-Optimizer Kubernetes Mode](#mcp-optimizer-kubernetes-mode)
+- [MCP Optimizer Kubernetes Mode](#mcp-optimizer-kubernetes-mode)
 - [Installing ToolHive Operator](#installing-toolhive-operator)
-- [Building MCP-Optimizer Image](#building-mcp-optimizer-image)
+- [Building MCP Optimizer Image](#building-mcp-optimizer-image)
 - [Installing MCP Servers](#installing-mcp-servers)
-- [Deploying MCP-Optimizer](#deploying-mcp-optimizer)
+- [Deploying MCP Optimizer](#deploying-mcp-optimizer)
 - [Connecting Clients](#connecting-clients)
 - [RBAC Configuration](#rbac-configuration)
 - [MCPServer CRD Mapping](#mcpserver-crd-mapping)
@@ -20,7 +20,7 @@ This guide covers deploying MCP-Optimizer and MCP servers in Kubernetes using th
 
 ## Overview
 
-MCP-Optimizer supports running in Kubernetes mode, where it queries MCPServer Custom Resource Definitions (CRDs) instead of the Docker-based workloads API. This enables:
+MCP Optimizer supports running in Kubernetes mode, where it queries MCPServer Custom Resource Definitions (CRDs) instead of the Docker-based workloads API. This enables:
 
 - Native Kubernetes integration with MCPServer CRDs
 - Automatic service discovery and tool aggregation
@@ -38,7 +38,7 @@ helm upgrade -i toolhive-operator-crds oci://ghcr.io/stacklok/toolhive/toolhive-
 helm upgrade -i toolhive-operator oci://ghcr.io/stacklok/toolhive/toolhive-operator \
   -n toolhive-system --create-namespace
 
-# 2. Deploy MCP-Optimizer
+# 2. Deploy MCP Optimizer
 # Option A: From OCI registry (recommended)
 helm install mcp-optimizer oci://ghcr.io/stacklok/mcp-optimizer/mcp-optimizer -n toolhive-system
 
@@ -71,15 +71,15 @@ Read the sections below for detailed explanations, configuration options, and tr
 
 - Kubernetes cluster (v1.19+)
 - `kubectl` configured to access your cluster
-- Helm 3.x (for operator and MCP-Optimizer installation)
+- Helm 3.x (for operator and MCP Optimizer installation)
 - ToolHive operator (installation steps below)
-- Docker (for building local MCP-Optimizer image)
+- Docker (for building local MCP Optimizer image)
 
-## MCP-Optimizer Kubernetes Mode
+## MCP Optimizer Kubernetes Mode
 
 ### Configuration
 
-MCP-Optimizer uses environment variables for Kubernetes mode configuration:
+MCP Optimizer uses environment variables for Kubernetes mode configuration:
 
 ```bash
 # Required: Set runtime mode to k8s
@@ -124,7 +124,7 @@ Easiest way to test Kubernetes integration locally:
 
 #### Mode 2: Running In-Cluster (Production)
 
-When MCP-Optimizer is deployed as a pod in Kubernetes, everything is automatically configured:
+When MCP Optimizer is deployed as a pod in Kubernetes, everything is automatically configured:
 
 - **Runtime mode**: Set to `k8s` via environment variable
 - **API server URL**: Automatically constructed from `KUBERNETES_SERVICE_HOST` and `KUBERNETES_SERVICE_PORT_HTTPS`
@@ -136,7 +136,7 @@ When MCP-Optimizer is deployed as a pod in Kubernetes, everything is automatical
 
 #### Mode 3: Remote Access with kubeconfig
 
-For running MCP-Optimizer outside the cluster with cluster access:
+For running MCP Optimizer outside the cluster with cluster access:
 
 ```bash
 export RUNTIME_MODE=k8s
@@ -167,13 +167,13 @@ kubectl get crd mcpservers.toolhive.stacklok.dev
 kubectl get pods -n toolhive-system
 ```
 
-## Building MCP-Optimizer Image (Optional for Local Development)
+## Building MCP Optimizer Image (Optional for Local Development)
 
 By default, the Helm chart uses published container images from `ghcr.io/stacklok/mcp-optimizer`. For most users, you can skip this section and proceed directly to deployment.
 
 ### For Local Development
 
-If you need to test local changes to MCP-Optimizer, you can build and use a local image:
+If you need to test local changes to MCP Optimizer, you can build and use a local image:
 
 ```bash
 # From the mcp-optimizer repository root
@@ -309,16 +309,16 @@ After successful installation:
   - Transport: stdio
   - Requires: GITHUB_PERSONAL_ACCESS_TOKEN secret
 
-## Deploying MCP-Optimizer
+## Deploying MCP Optimizer
 
-MCP-Optimizer aggregates all MCP servers in the cluster and provides unified tool discovery.
+MCP Optimizer aggregates all MCP servers in the cluster and provides unified tool discovery.
 
 ### Using OCI Registry (Recommended)
 
-Install MCP-Optimizer from the published Helm chart in the OCI registry:
+Install MCP Optimizer from the published Helm chart in the OCI registry:
 
 ```bash
-# Deploy MCP-Optimizer from OCI registry
+# Deploy MCP Optimizer from OCI registry
 helm install mcp-optimizer oci://ghcr.io/stacklok/mcp-optimizer/mcp-optimizer -n toolhive-system
 ```
 
@@ -340,7 +340,7 @@ helm install mcp-optimizer oci://ghcr.io/stacklok/mcp-optimizer/mcp-optimizer \
 You can also install from the source repository:
 
 ```bash
-# Deploy MCP-Optimizer from local chart directory
+# Deploy MCP Optimizer from local chart directory
 helm install mcp-optimizer ./helm/mcp-optimizer -n toolhive-system
 ```
 
@@ -368,16 +368,16 @@ helm install mcp-optimizer oci://ghcr.io/stacklok/mcp-optimizer/mcp-optimizer \
   --set mcpserver.image.tag=v1.0.0
 ```
 
-### Verify MCP-Optimizer Installation
+### Verify MCP Optimizer Installation
 
 ```bash
-# Check MCP-Optimizer MCPServer resource
+# Check MCP Optimizer MCPServer resource
 kubectl get mcpserver mcp-optimizer -n toolhive-system
 
-# Check MCP-Optimizer pod
+# Check MCP Optimizer pod
 kubectl get pods -n toolhive-system -l app.kubernetes.io/name=mcp-optimizer
 
-# Check MCP-Optimizer logs to see discovered tools
+# Check MCP Optimizer logs to see discovered tools
 kubectl logs -n toolhive-system mcp-optimizer-0 --tail=50 | grep -E "fetch|github|successful|total_tools"
 ```
 
@@ -391,7 +391,7 @@ Workload ingestion with cleanup completed failed=0 successful=2 total_tools=51
 
 ### Verify Proxy Mode
 
-MCP-Optimizer must use `streamable-http` proxy mode for proper Cursor integration:
+MCP Optimizer must use `streamable-http` proxy mode for proper Cursor integration:
 
 ```bash
 kubectl get mcpserver mcp-optimizer -n toolhive-system -o jsonpath='{.spec.proxyMode}' && echo
@@ -407,9 +407,9 @@ kubectl patch mcpserver mcp-optimizer -n toolhive-system --type=merge -p '{"spec
 
 ### Connecting Cursor
 
-To use MCP-Optimizer from Cursor, expose the service locally and configure Cursor's MCP settings.
+To use MCP Optimizer from Cursor, expose the service locally and configure Cursor's MCP settings.
 
-#### Step 1: Port Forward MCP-Optimizer Service
+#### Step 1: Port Forward MCP Optimizer Service
 
 In a terminal, run and keep this command running:
 
@@ -452,11 +452,11 @@ Try asking Cursor:
 - "Fetch the content from https://example.com"
 - "Get GitHub issue #123 from stacklok/toolhive"
 
-MCP-Optimizer will automatically discover and route requests to the appropriate MCP servers.
+MCP Optimizer will automatically discover and route requests to the appropriate MCP servers.
 
 ### Alternative: Direct Connection to GitHub
 
-If you want to connect directly to the GitHub MCP server without MCP-Optimizer:
+If you want to connect directly to the GitHub MCP server without MCP Optimizer:
 
 #### Port Forward GitHub Service
 
@@ -514,7 +514,7 @@ Configuration file: `~/Library/Application Support/Claude/claude_desktop_config.
 
 ## RBAC Configuration
 
-When running in-cluster, MCP-Optimizer requires appropriate RBAC permissions to read MCPServer resources:
+When running in-cluster, MCP Optimizer requires appropriate RBAC permissions to read MCPServer resources:
 
 ```yaml
 apiVersion: v1
@@ -546,11 +546,11 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 ```
 
-The MCP-Optimizer Helm chart automatically creates these resources when `rbac.create: true` (default).
+The MCP Optimizer Helm chart automatically creates these resources when `rbac.create: true` (default).
 
 ## MCPServer CRD Mapping
 
-MCP-Optimizer converts MCPServer CRDs to internal Workload models with the following field mappings:
+MCP Optimizer converts MCPServer CRDs to internal Workload models with the following field mappings:
 
 | MCPServer Field | Workload Field | Notes |
 |----------------|---------------|-------|
@@ -580,7 +580,7 @@ kubectl logs -n toolhive-system fetch-0
 # GitHub server
 kubectl logs -n toolhive-system github-0
 
-# MCP-Optimizer
+# MCP Optimizer
 kubectl logs -n toolhive-system mcp-optimizer-0 --tail=100
 ```
 
@@ -623,7 +623,7 @@ If tools are not being discovered:
 - Check the MCPServer status.tools field: `kubectl get mcpserver <name> -o jsonpath='{.status.tools}'`
 - Ensure the MCP server pod is running: `kubectl get pods -l toolhive=true`
 - Check MCP server logs for errors
-- Verify MCP-Optimizer is polling correctly: Check MCP-Optimizer logs for ingestion messages
+- Verify MCP Optimizer is polling correctly: Check MCP Optimizer logs for ingestion messages
 
 ### Verification Commands
 
@@ -634,7 +634,7 @@ kubectl get mcpserver -n toolhive-system
 # Check all MCP server pods
 kubectl get pods -n toolhive-system | grep -E "fetch|github|mcp-optimizer"
 
-# Check MCP-Optimizer ingestion status
+# Check MCP Optimizer ingestion status
 kubectl logs -n toolhive-system mcp-optimizer-0 --tail=100 | grep "Workload ingestion with cleanup completed"
 ```
 
@@ -686,10 +686,10 @@ Mismatches between these fields will cause connection failures.
 
 ### Group Filtering
 
-MCP-Optimizer supports filtering MCPServers by group labels. This is useful for isolating servers by environment or team:
+MCP Optimizer supports filtering MCPServers by group labels. This is useful for isolating servers by environment or team:
 
 ```yaml
-# In MCP-Optimizer deployment, set environment variable:
+# In MCP Optimizer deployment, set environment variable:
 - name: ALLOWED_GROUPS
   value: "development,production"
 ```
@@ -716,7 +716,7 @@ For detailed information about in-cluster authentication mechanisms, service acc
 - Review the [ToolHive documentation](https://github.com/stacklok/toolhive)
 - Learn about [MCPServer CRD configuration options](https://github.com/stacklok/toolhive/tree/main/deploy/operator)
 - Explore additional MCP servers in the [examples directory](../examples/mcp-servers/)
-- Deploy MCP-Optimizer from [OCI registry (releases)](https://github.com/StacklokLabs/mcp-optimizer/releases) or [local Helm chart](../helm/mcp-optimizer/)
+- Deploy MCP Optimizer from [OCI registry (releases)](https://github.com/StacklokLabs/mcp-optimizer/releases) or [local Helm chart](../helm/mcp-optimizer/)
 
 ## See Also
 

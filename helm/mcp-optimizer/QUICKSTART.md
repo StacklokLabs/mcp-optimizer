@@ -1,6 +1,6 @@
-# MCP-Optimizer Helm Chart - Quick Start
+# MCP Optimizer Helm Chart - Quick Start
 
-A quick reference guide for deploying MCP-Optimizer with Helm.
+A quick reference guide for deploying MCP Optimizer with Helm.
 
 ## Prerequisites Check
 

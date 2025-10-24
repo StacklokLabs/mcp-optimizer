@@ -2,7 +2,7 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# MCP-Optimizer MCPServer configuration
+# MCP Optimizer MCPServer configuration
 mcpserver:
   # Name of the MCPServer resource
   name: mcp-optimizer

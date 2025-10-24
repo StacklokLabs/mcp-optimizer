@@ -32,7 +32,7 @@ logger = structlog.get_logger(__name__)
 
 
 class McpOptimizerError(Exception):
-    """Base exception class for MCP-Optimizer errors."""
+    """Base exception class for MCP Optimizer errors."""
 
     pass
 

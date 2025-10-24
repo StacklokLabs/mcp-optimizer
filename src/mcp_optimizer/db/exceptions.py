@@ -1,4 +1,4 @@
-"""Database exceptions for MCP-Optimizer."""
+"""Database exceptions for MCP Optimizer."""
 
 from mcp_optimizer.db.models import RegistryServer
 
