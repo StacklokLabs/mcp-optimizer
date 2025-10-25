@@ -1,4 +1,4 @@
-# Example values file for MCP-Optimizer with group filtering
+# Example values file for MCP Optimizer with group filtering
 # This limits mcp-optimizer to only discover MCP servers in specific groups
 
 mcpserver:
@@ -6,7 +6,7 @@ mcpserver:
   namespace: toolhive-system
   
   image:
-    repository: ghcr.io/your-org/mcp-optimizer
+    repository: ghcr.io/stackloklabs/mcp-optimizer
     tag: "0.1.0"
   
   resources:

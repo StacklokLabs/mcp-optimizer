@@ -1,6 +1,6 @@
 ## Project
 
-The general purpose of mcp-optimizer is to develop a MCP server that acts as an intelligent intermediary between AI clients and multiple MCP servers. The MCP Optimizer server addresses the challenge of managing large numbers of MCP tools by providing semantic tool discovery, caching, and unified access through a single endpoint.
+The general purpose of the ToolHive MCP Optimizer is to develop a MCP server that acts as an intelligent intermediary between AI clients and multiple MCP servers. The MCP Optimizer server addresses the challenge of managing large numbers of MCP tools by providing semantic tool discovery, caching, and unified access through a single endpoint.
 
 ## Technical considerations
 - Use uv as package manager. `uv add <package>` for adding a package. `uv add <package> --dev` for development packages for linting and testing

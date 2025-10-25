@@ -9,7 +9,7 @@
 
 ### User Story 1 - Stable Remote Workload Ingestion (Priority: P1)
 
-When a remote MCP workload is running in ToolHive, the MCP-Optimizer system should correctly match it to its registry entry based on URL rather than name, preventing unintended deletion of correctly deployed workloads.
+When a remote MCP workload is running in ToolHive, the MCP Optimizer system should correctly match it to its registry entry based on URL rather than name, preventing unintended deletion of correctly deployed workloads.
 
 **Why this priority**: This is the core bug fix that prevents data loss and ensures system stability. Without this fix, remote workloads cannot be reliably used in production.
 

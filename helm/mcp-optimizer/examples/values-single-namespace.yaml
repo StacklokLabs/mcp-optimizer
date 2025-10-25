@@ -1,4 +1,4 @@
-# Example values file for MCP-Optimizer configured to query a single namespace
+# Example values file for MCP Optimizer configured to query a single namespace
 # This is useful when you want to limit mcp-optimizer's scope
 
 mcpserver:
@@ -6,7 +6,7 @@ mcpserver:
   namespace: toolhive-system
   
   image:
-    repository: ghcr.io/your-org/mcp-optimizer
+    repository: ghcr.io/stackloklabs/mcp-optimizer
     tag: "0.1.0"
   
   env:

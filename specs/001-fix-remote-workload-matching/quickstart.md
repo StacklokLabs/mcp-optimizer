@@ -10,7 +10,7 @@ This quickstart guide helps you test and validate the remote workload matching f
 ## Prerequisites
 
 - ToolHive running (Docker or Kubernetes mode)
-- MCP-Optimizer development environment set up
+- MCP Optimizer development environment set up
 - Access to ToolHive API (default: localhost:8080)
 
 ## Test Scenario 1: Remote Workload with Custom Name

@@ -7,7 +7,7 @@ To learn more about the release, try:
   $ helm status {{ .Release.Name }} -n {{ .Values.mcpserver.namespace }}
   $ helm get all {{ .Release.Name }} -n {{ .Values.mcpserver.namespace }}
 
-MCP-Optimizer has been deployed as an MCPServer resource in the {{ .Values.mcpserver.namespace }} namespace.
+MCP Optimizer has been deployed as an MCPServer resource in the {{ .Values.mcpserver.namespace }} namespace.
 
 The MCPServer resource will be managed by the ToolHive operator, which will create:
 - A Deployment for the mcp-optimizer container
@@ -61,6 +61,6 @@ Configuration:
 - Image: {{ include "mcp-optimizer.image" . }}
 
 For more information, visit:
-- MCP-Optimizer Documentation: https://github.com/your-org/mcp-optimizer
+- MCP Optimizer Documentation: https://github.com/StacklokLabs/mcp-optimizer
 - ToolHive Documentation: https://github.com/stacklok/toolhive
 

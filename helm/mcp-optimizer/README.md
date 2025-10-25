@@ -1,6 +1,6 @@
-# MCP-Optimizer Helm Chart
+# MCP Optimizer Helm Chart
 
-This Helm chart deploys MCP-Optimizer as an MCPServer resource in a Kubernetes cluster with ToolHive operator installed.
+This Helm chart deploys MCP Optimizer as an MCPServer resource in a Kubernetes cluster with ToolHive operator installed.
 
 ## Prerequisites
 
@@ -47,7 +47,7 @@ helm uninstall mcp-optimizer -n toolhive-system
 
 ## Configuration
 
-The following table lists the configurable parameters of the MCP-Optimizer chart and their default values.
+The following table lists the configurable parameters of the MCP Optimizer chart and their default values.
 
 ### MCPServer Configuration
 
@@ -288,10 +288,10 @@ For production deployments, consider:
 
 ## Additional Resources
 
-- [MCP-Optimizer Documentation](https://github.com/your-org/mcp-optimizer)
+- [MCP Optimizer Documentation](https://github.com/StacklokLabs/mcp-optimizer)
 - [ToolHive Documentation](https://github.com/stacklok/toolhive)
 - [Kubernetes Integration Guide](/docs/kubernetes-integration.md)
 
 ## License
 
-This Helm chart is licensed under the same license as the MCP-Optimizer project.
+This Helm chart is licensed under the same license as the MCP Optimizer project.

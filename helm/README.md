@@ -1,12 +1,12 @@
-# MCP-Optimizer Helm Charts
+# MCP Optimizer Helm Charts
 
-This directory contains Helm charts for deploying MCP-Optimizer in Kubernetes.
+This directory contains Helm charts for deploying MCP Optimizer in Kubernetes.
 
 ## Available Charts
 
 ### mcp-optimizer
 
-The main chart for deploying MCP-Optimizer as an MCPServer resource in a Kubernetes cluster with ToolHive operator.
+The main chart for deploying MCP Optimizer as an MCPServer resource in a Kubernetes cluster with ToolHive operator.
 
 - **Location**: `./mcp-optimizer/`
 - **Documentation**: See [mcp-optimizer/README.md](./mcp-optimizer/README.md)
@@ -40,7 +40,7 @@ helm upgrade -i toolhive-operator \
   --version latest
 ```
 
-### Installing MCP-Optimizer
+### Installing MCP Optimizer
 
 ```bash
 # From the mcp-optimizer repository root
@@ -92,6 +92,6 @@ See the [mcp-optimizer Chart README](./mcp-optimizer/README.md).
 ## Support
 
 For issues and questions:
-- GitHub Issues: https://github.com/your-org/mcp-optimizer/issues
-- Documentation: https://github.com/your-org/mcp-optimizer/docs
+- GitHub Issues: https://github.com/StacklokLabs/mcp-optimizer/issues
+- Documentation: https://github.com/StacklokLabs/mcp-optimizer/docs
 

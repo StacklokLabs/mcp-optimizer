@@ -1,9 +1,10 @@
 # Contributing to `mcp-optimizer` <!-- omit from toc -->
 
-First off, thank you for taking the time to contribute to mcp-optimizer! :+1: :tada: mcp-optimizer
-is released under the Apache 2.0 license. If you would like to contribute
-something or want to hack on the code, this document should help you get
-started. You can find some hints for starting development in mcp-optimizer's
+First off, thank you for taking the time to contribute to the ToolHive MCP
+Optimizer! :+1: :tada: MCP Optimizer is released under the Apache 2.0 license.
+If you would like to contribute something or want to hack on the code, this
+document should help you get started. You can find some hints for starting
+development in mcp-optimizer's
 [README](https://github.com/StacklokLabs/mcp-optimizer/blob/main/README.md).
 
 ## Table of contents <!-- omit from toc -->
@@ -26,8 +27,8 @@ report unacceptable behavior to
 
 ## Reporting security vulnerabilities
 
-If you think you have found a security vulnerability in mcp-optimizer please DO NOT
-disclose it publicly until we've had a chance to fix it. Please don't report
+If you think you have found a security vulnerability in mcp-optimizer please DO
+NOT disclose it publicly until we've had a chance to fix it. Please don't report
 security vulnerabilities using GitHub issues; instead, please follow this
 [process](https://github.com/StacklokLabs/mcp-optimizer/blob/main/SECURITY.md)
 
@@ -52,18 +53,20 @@ are a great place to start!
 ### Pull request process
 
 - All commits must include a Signed-off-by trailer at the end of each commit
-message to indicate that the contributor agrees to the Developer Certificate of
-Origin. For additional details, check out the [DCO instructions](dco.md).
+  message to indicate that the contributor agrees to the Developer Certificate
+  of Origin. For additional details, check out the [DCO instructions](dco.md).
 
 - Create an issue outlining the fix or feature.
-- Fork the mcp-optimizer repository to your own GitHub account and clone it locally.
+- Fork the mcp-optimizer repository to your own GitHub account and clone it
+  locally.
 - Hack on your changes.
 - Correctly format your commit messages, see
   [Commit message guidelines](#commit-message-guidelines) below.
 - Open a PR by ensuring the title and its description reflect the content of the
   PR.
 - Ensure that CI passes, if it fails, fix the failures.
-- Every pull request requires a review from the core mcp-optimizer team before merging.
+- Every pull request requires a review from the core mcp-optimizer team before
+  merging.
 - Once approved, all of your commits will be squashed into a single commit with
   your PR title.
 

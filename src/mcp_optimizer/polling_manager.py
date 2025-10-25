@@ -2,7 +2,7 @@
 Polling manager for periodic MCP server discovery and synchronization.
 
 This module provides functionality to periodically poll ToolHive for workload changes,
-detect server status changes, and synchronize the MCP-Optimizer database accordingly.
+detect server status changes, and synchronize the MCP Optimizer database accordingly.
 """
 
 import asyncio

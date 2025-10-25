@@ -1,6 +1,6 @@
 # Group Filtering
 
-MCP-Optimizer supports filtering tool lookups by ToolHive groups, allowing you to restrict which tools are discoverable based on their group membership.
+MCP Optimizer supports filtering tool lookups by ToolHive groups, allowing you to restrict which tools are discoverable based on their group membership.
 
 ## Overview
 
@@ -51,9 +51,9 @@ mcp-optimizer
 
 ## How It Works
 
-1. **Server Group Assignment**: When MCP-Optimizer ingests MCP servers from ToolHive, it automatically captures and stores each server's group information.
+1. **Server Group Assignment**: When MCP Optimizer ingests MCP servers from ToolHive, it automatically captures and stores each server's group information.
 
-2. **Tool Discovery**: When searching for tools using `find_tool`, `list_tools`, or `search_registry`, MCP-Optimizer:
+2. **Tool Discovery**: When searching for tools using `find_tool`, `list_tools`, or `search_registry`, MCP Optimizer:
    - Checks if group filtering is configured via the `ALLOWED_GROUPS` environment variable
    - Filters the search to only include tools from servers in the specified groups
    - Returns only matching tools
@@ -84,7 +84,7 @@ Group filtering is applied at the database query level, affecting:
 
 ## Integration with ToolHive
 
-MCP-Optimizer automatically discovers and respects ToolHive group assignments:
+MCP Optimizer automatically discovers and respects ToolHive group assignments:
 
 ```bash
 # Create groups in ToolHive
@@ -95,7 +95,7 @@ thv group create staging
 thv run --group production github
 thv run --group staging postgres
 
-# Configure MCP-Optimizer to only see production tools
+# Configure MCP Optimizer to only see production tools
 export ALLOWED_GROUPS="production"
 mcp-optimizer
 ```
@@ -103,5 +103,5 @@ mcp-optimizer
 ## See Also
 
 - [ToolHive Groups Documentation](https://docs.stacklok.com/toolhive/)
-- [MCP-Optimizer README](../README.md)
+- [MCP Optimizer README](../README.md)
 
