@@ -157,7 +157,7 @@ class MCPOptimizerConfig(BaseModel):
         ge=1,
         le=16,
         description="Number of threads for embedding generation (1-16). "
-        "Lower values reduce CPU usage. Set to None to use all CPU cores. "
+        "Lower values reduce CPU usage. Set to None to use all CPU cores. ",
     )
 
     # Token counting configuration
@@ -245,6 +245,12 @@ class MCPOptimizerConfig(BaseModel):
             "(search_registry and install_server tools). "
             "When disabled, only find_tool, call_tool, and list_tools are available."
         ),
+    )
+    fastembed_cache_path: str | None = Field(
+        default=None, description="Path to FastEmbed cache directory"
+    )
+    tiktoken_cache_dir: str | None = Field(
+        default=None, description="Path to Tiktoken cache directory"
     )
 
     @field_validator("skipped_workloads", mode="before")
@@ -496,6 +502,8 @@ def _populate_config_from_env() -> dict[str, Any]:
         "K8S_NAMESPACE": "k8s_namespace",
         "K8S_ALL_NAMESPACES": "k8s_all_namespaces",
         "ENABLE_DYNAMIC_INSTALL": "enable_dynamic_install",
+        "FASTEMBED_CACHE_PATH": "fastembed_cache_path",
+        "TIKTOKEN_CACHE_DIR": "tiktoken_cache_dir",
     }
 
     for env_var, field_name in env_mappings.items():

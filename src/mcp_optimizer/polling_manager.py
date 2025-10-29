@@ -160,6 +160,7 @@ def configure_polling(toolhive_client: ToolhiveClient, config: MCPOptimizerConfi
         model_name=config.embedding_model_name,
         enable_cache=config.enable_embedding_cache,
         threads=config.embedding_threads,
+        fastembed_cache_path=config.fastembed_cache_path,
     )
 
     _polling_state.polling_manager = PollingManager(

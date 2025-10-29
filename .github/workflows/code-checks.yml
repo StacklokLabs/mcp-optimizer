@@ -19,3 +19,7 @@ jobs:
     name: Integration Tests
     uses: ./.github/workflows/integration-tests.yml
     needs: image_build
+  offline_tests:
+    name: Offline Mode Tests
+    uses: ./.github/workflows/offline-tests.yml
+    needs: image_build

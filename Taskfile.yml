@@ -115,3 +115,8 @@ tasks:
       - thv rm mcp-optimizer || true
       - docker build -t mcp-optimizer .
       - thv run mcp-optimizer:latest --transport streamable-http --group optim
+
+  offline-container-tests:
+    desc: Run container offline mode tests
+    cmds:
+      - ./scripts/test-offline.sh

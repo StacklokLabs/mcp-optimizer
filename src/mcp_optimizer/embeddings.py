@@ -34,7 +34,13 @@ class EmbeddingManager:
     See database migration file for the configured dimension in vector tables.
     """
 
-    def __init__(self, model_name: str, enable_cache: bool, threads: int | None = None):
+    def __init__(
+        self,
+        model_name: str,
+        enable_cache: bool,
+        threads: int | None,
+        fastembed_cache_path: str | None,
+    ) -> None:
         """Initialize with specified embedding model.
 
         Args:
@@ -46,17 +52,26 @@ class EmbeddingManager:
             threads: Number of threads to use for embedding generation.
                     None = use all available CPU cores (default FastEmbed behavior).
                     Set to 1-4 to limit CPU usage in production.
+            fastembed_cache_path: Optional path to FastEmbed model cache directory.
         """
         self.model_name = model_name
         self._model: TextEmbedding | None = None
         self.enable_cache = enable_cache
         self.threads = threads
+        self.fastembed_cache_path = fastembed_cache_path
 
     @property
     def model(self) -> TextEmbedding:
         """Lazy load the embedding model."""
         if self._model is None:
-            self._model = TextEmbedding(model_name=self.model_name, threads=self.threads)
+            # Enable local_files_only when cache_dir is set for offline/airgapped deployments
+            local_files_only = self.fastembed_cache_path is not None
+            self._model = TextEmbedding(
+                model_name=self.model_name,
+                threads=self.threads,
+                cache_dir=self.fastembed_cache_path,
+                local_files_only=local_files_only,
+            )
         return self._model
 
     def _generate_single_cached_embedding(self, text: str) -> np.ndarray:

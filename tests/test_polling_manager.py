@@ -23,7 +23,12 @@ def db_config():
 @pytest.fixture
 def embedding_manager():
     """Create a test embedding manager."""
-    return EmbeddingManager(model_name="BAAI/bge-small-en-v1.5", enable_cache=True)
+    return EmbeddingManager(
+        model_name="BAAI/bge-small-en-v1.5",
+        enable_cache=True,
+        threads=None,
+        fastembed_cache_path=None,
+    )
 
 
 @pytest.fixture
