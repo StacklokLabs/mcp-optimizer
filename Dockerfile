@@ -54,24 +54,37 @@ USER root
 RUN chown app:app /app/.venv/lib/python3.13/site-packages/sqlite_vec/vec0.so
 USER app
 
-# Pre-download fastembed models stage
+# Pre-download fastembed models and tiktoken encodings stage
 FROM builder AS model-downloader
-
-# Set cache directory for fastembed models
-ENV FASTEMBED_CACHE_PATH=/home/app/.cache/fastembed
 
 # Switch to root to create cache directory, then switch back to app user
 USER root
-RUN mkdir -p /home/app/.cache/fastembed && chown -R app:app /home/app/.cache
+RUN mkdir -p /app/.cache/fastembed /app/.cache/tiktoken && chown -R app:app /app/.cache
 USER app
 
+# Set cache directory for fastembed models and tiktoken
+ENV FASTEMBED_CACHE_PATH=/app/.cache/fastembed
+ENV TIKTOKEN_CACHE_DIR=/app/.cache/tiktoken
+
 # Pre-download the embedding model by instantiating TextEmbedding
-RUN --mount=type=cache,target=/home/app/.cache/uv,uid=1000,gid=1000 \
+RUN --mount=type=cache,target=/app/.cache/uv,uid=1000,gid=1000 \
+    FASTEMBED_CACHE_PATH=/app/.cache/fastembed \
     /app/.venv/bin/python -c "\
+import os; \
+print(f'FASTEMBED_CACHE_PATH: {os.environ.get(\"FASTEMBED_CACHE_PATH\")}'); \
 from fastembed import TextEmbedding; \
 print('Downloading embedding model...'); \
 model = TextEmbedding(model_name='BAAI/bge-small-en-v1.5'); \
-print('Model downloaded successfully')"
+print('Model downloaded successfully')" && \
+    echo "Verifying cache contents:" && \
+    ls -la /app/.cache/fastembed/
+
+# Pre-download tiktoken encodings for offline use
+RUN /app/.venv/bin/python -c "\
+import tiktoken; \
+print('Downloading tiktoken encodings...'); \
+tiktoken.get_encoding('cl100k_base'); \
+print('Tiktoken encodings downloaded successfully')"
 
 FROM python:3.13-slim AS runner
 
@@ -87,15 +100,17 @@ RUN chown app:app /app
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --from=builder --chown=app:app /app/migrations /app/migrations
 
-# Copy pre-downloaded fastembed models
-COPY --from=model-downloader --chown=app:app /home/app/.cache/fastembed /home/app/.cache/fastembed
+# Copy pre-downloaded fastembed models and tiktoken encodings
+COPY --from=model-downloader --chown=app:app /app/.cache/fastembed /app/.cache/fastembed
+COPY --from=model-downloader --chown=app:app /app/.cache/tiktoken /app/.cache/tiktoken
 
 # Switch to non-root user
 USER app
 
 # Set default environment variables for container deployment
 ENV TOOLHIVE_HOST=host.docker.internal
-ENV FASTEMBED_CACHE_PATH=/home/app/.cache/fastembed
+ENV FASTEMBED_CACHE_PATH=/app/.cache/fastembed
+ENV TIKTOKEN_CACHE_DIR=/app/.cache/tiktoken
 ENV COLORED_LOGS=false
 
 # Run the application

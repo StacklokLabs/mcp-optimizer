@@ -13,14 +13,24 @@ class TestEmbeddingManager:
 
     def test_initialization_with_default_model(self):
         """Test EmbeddingManager initialization with default model."""
-        manager = EmbeddingManager(model_name="BAAI/bge-small-en-v1.5", enable_cache=True)
+        manager = EmbeddingManager(
+            model_name="BAAI/bge-small-en-v1.5",
+            enable_cache=True,
+            threads=None,
+            fastembed_cache_path=None,
+        )
         assert manager.model_name == "BAAI/bge-small-en-v1.5"
         assert manager._model is None
 
     def test_initialization_with_custom_model(self):
         """Test EmbeddingManager initialization with custom model."""
         custom_model = "sentence-transformers/all-MiniLM-L6-v2"
-        manager = EmbeddingManager(model_name=custom_model, enable_cache=True)
+        manager = EmbeddingManager(
+            model_name=custom_model,
+            enable_cache=True,
+            threads=None,
+            fastembed_cache_path=None,
+        )
         assert manager.model_name == custom_model
         assert manager._model is None
 
@@ -30,7 +40,12 @@ class TestEmbeddingManager:
         mock_model_instance = Mock()
         mock_text_embedding.return_value = mock_model_instance
 
-        manager = EmbeddingManager(model_name="BAAI/bge-small-en-v1.5", enable_cache=True)
+        manager = EmbeddingManager(
+            model_name="BAAI/bge-small-en-v1.5",
+            enable_cache=True,
+            threads=None,
+            fastembed_cache_path=None,
+        )
         assert manager._model is None
 
         # First access should trigger loading
@@ -38,7 +53,10 @@ class TestEmbeddingManager:
         assert model == mock_model_instance
         assert manager._model == mock_model_instance
         mock_text_embedding.assert_called_once_with(
-            model_name="BAAI/bge-small-en-v1.5", threads=None
+            model_name="BAAI/bge-small-en-v1.5",
+            threads=None,
+            cache_dir=None,
+            local_files_only=False,
         )
 
         # Second access should reuse existing model
@@ -54,7 +72,12 @@ class TestEmbeddingManager:
         mock_model.embed.return_value = iter([mock_embedding[0]])
         mock_text_embedding.return_value = mock_model
 
-        manager = EmbeddingManager(model_name="BAAI/bge-small-en-v1.5", enable_cache=True)
+        manager = EmbeddingManager(
+            model_name="BAAI/bge-small-en-v1.5",
+            enable_cache=True,
+            threads=None,
+            fastembed_cache_path=None,
+        )
         sentences = ["This is a test sentence."]
 
         result = manager.generate_embedding(sentences)
@@ -76,7 +99,12 @@ class TestEmbeddingManager:
         mock_model.embed.return_value = iter(mock_embeddings)
         mock_text_embedding.return_value = mock_model
 
-        manager = EmbeddingManager(model_name="BAAI/bge-small-en-v1.5", enable_cache=True)
+        manager = EmbeddingManager(
+            model_name="BAAI/bge-small-en-v1.5",
+            enable_cache=True,
+            threads=None,
+            fastembed_cache_path=None,
+        )
         sentences = ["First test sentence.", "Second test sentence.", "Third test sentence."]
 
         result = manager.generate_embedding(sentences)
@@ -94,7 +122,12 @@ class TestEmbeddingManager:
         mock_model.embed.return_value = iter([])
         mock_text_embedding.return_value = mock_model
 
-        manager = EmbeddingManager(model_name="BAAI/bge-small-en-v1.5", enable_cache=True)
+        manager = EmbeddingManager(
+            model_name="BAAI/bge-small-en-v1.5",
+            enable_cache=True,
+            threads=None,
+            fastembed_cache_path=None,
+        )
         sentences = []
 
         result = manager.generate_embedding(sentences)
@@ -110,7 +143,12 @@ class TestEmbeddingManager:
         mock_model2 = Mock()
         mock_text_embedding.side_effect = [mock_model1, mock_model2]
 
-        manager = EmbeddingManager(model_name="model1", enable_cache=True)
+        manager = EmbeddingManager(
+            model_name="model1",
+            enable_cache=True,
+            threads=None,
+            fastembed_cache_path=None,
+        )
 
         # Load first model
         model1 = manager.model
@@ -133,7 +171,12 @@ class TestEmbeddingManager:
         mock_model = Mock()
         mock_text_embedding.return_value = mock_model
 
-        manager = EmbeddingManager(model_name="model1", enable_cache=True)
+        manager = EmbeddingManager(
+            model_name="model1",
+            enable_cache=True,
+            threads=None,
+            fastembed_cache_path=None,
+        )
 
         # Load model
         model1 = manager.model
@@ -157,7 +200,10 @@ class TestEmbeddingManager:
 
         # Test with threads=2
         manager = EmbeddingManager(
-            model_name="BAAI/bge-small-en-v1.5", enable_cache=True, threads=2
+            model_name="BAAI/bge-small-en-v1.5",
+            enable_cache=True,
+            threads=2,
+            fastembed_cache_path=None,
         )
         assert manager.threads == 2
 
@@ -165,7 +211,10 @@ class TestEmbeddingManager:
         model = manager.model
         assert model == mock_model_instance
         mock_text_embedding.assert_called_once_with(
-            model_name="BAAI/bge-small-en-v1.5", threads=2
+            model_name="BAAI/bge-small-en-v1.5",
+            threads=2,
+            cache_dir=None,
+            local_files_only=False,
         )
 
     @patch("mcp_optimizer.embeddings.TextEmbedding")
@@ -176,22 +225,38 @@ class TestEmbeddingManager:
 
         # Test with threads=1 (lower boundary)
         manager_min = EmbeddingManager(
-            model_name="BAAI/bge-small-en-v1.5", enable_cache=True, threads=1
+            model_name="BAAI/bge-small-en-v1.5",
+            enable_cache=True,
+            threads=1,
+            fastembed_cache_path=None,
         )
         assert manager_min.threads == 1
         _ = manager_min.model  # Trigger lazy loading
         assert mock_text_embedding.call_count == 1
-        mock_text_embedding.assert_called_with(model_name="BAAI/bge-small-en-v1.5", threads=1)
+        mock_text_embedding.assert_called_with(
+            model_name="BAAI/bge-small-en-v1.5",
+            threads=1,
+            cache_dir=None,
+            local_files_only=False,
+        )
 
         # Test with threads=16 (upper boundary)
         mock_text_embedding.reset_mock()
         manager_max = EmbeddingManager(
-            model_name="BAAI/bge-small-en-v1.5", enable_cache=True, threads=16
+            model_name="BAAI/bge-small-en-v1.5",
+            enable_cache=True,
+            threads=16,
+            fastembed_cache_path=None,
         )
         assert manager_max.threads == 16
         _ = manager_max.model  # Trigger lazy loading
         assert mock_text_embedding.call_count == 1
-        mock_text_embedding.assert_called_with(model_name="BAAI/bge-small-en-v1.5", threads=16)
+        mock_text_embedding.assert_called_with(
+            model_name="BAAI/bge-small-en-v1.5",
+            threads=16,
+            cache_dir=None,
+            local_files_only=False,
+        )
 
     @patch("mcp_optimizer.embeddings.TextEmbedding")
     def test_config_integration_with_threads(self, mock_text_embedding):
@@ -205,11 +270,15 @@ class TestEmbeddingManager:
             model_name=config_default.embedding_model_name,
             enable_cache=config_default.enable_embedding_cache,
             threads=config_default.embedding_threads,
+            fastembed_cache_path=config_default.fastembed_cache_path,
         )
         assert manager_default.threads == 2
         _ = manager_default.model  # Trigger lazy loading
         mock_text_embedding.assert_called_once_with(
-            model_name="BAAI/bge-small-en-v1.5", threads=2
+            model_name="BAAI/bge-small-en-v1.5",
+            threads=2,
+            cache_dir=None,
+            local_files_only=False,
         )
 
         # Test with config set to None
@@ -219,11 +288,15 @@ class TestEmbeddingManager:
             model_name=config_none.embedding_model_name,
             enable_cache=config_none.enable_embedding_cache,
             threads=config_none.embedding_threads,
+            fastembed_cache_path=config_none.fastembed_cache_path,
         )
         assert manager_none.threads is None
         _ = manager_none.model  # Trigger lazy loading
         mock_text_embedding.assert_called_once_with(
-            model_name="BAAI/bge-small-en-v1.5", threads=None
+            model_name="BAAI/bge-small-en-v1.5",
+            threads=None,
+            cache_dir=None,
+            local_files_only=False,
         )
 
         # Test with config set to custom value (8)
@@ -233,9 +306,13 @@ class TestEmbeddingManager:
             model_name=config_custom.embedding_model_name,
             enable_cache=config_custom.enable_embedding_cache,
             threads=config_custom.embedding_threads,
+            fastembed_cache_path=config_custom.fastembed_cache_path,
         )
         assert manager_custom.threads == 8
         _ = manager_custom.model  # Trigger lazy loading
         mock_text_embedding.assert_called_once_with(
-            model_name="BAAI/bge-small-en-v1.5", threads=8
+            model_name="BAAI/bge-small-en-v1.5",
+            threads=8,
+            cache_dir=None,
+            local_files_only=False,
         )

@@ -149,6 +149,7 @@ def initialize_server_components(config: MCPOptimizerConfig) -> None:
         model_name=config.embedding_model_name,
         enable_cache=config.enable_embedding_cache,
         threads=config.embedding_threads,
+        fastembed_cache_path=config.fastembed_cache_path,
     )
     mcp.settings.port = config.mcp_port
     toolhive_client = ToolhiveClient(

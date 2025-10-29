@@ -224,6 +224,7 @@ def main(**kwargs: Any) -> None:
             model_name=config.embedding_model_name,
             enable_cache=config.enable_embedding_cache,
             threads=config.embedding_threads,
+            fastembed_cache_path=config.fastembed_cache_path,
         )
         ingestion_service = IngestionService(
             db_config,
