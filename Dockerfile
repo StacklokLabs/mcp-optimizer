@@ -68,16 +68,13 @@ ENV TIKTOKEN_CACHE_DIR=/app/.cache/tiktoken
 
 # Pre-download the embedding model by instantiating TextEmbedding
 RUN --mount=type=cache,target=/app/.cache/uv,uid=1000,gid=1000 \
-    FASTEMBED_CACHE_PATH=/app/.cache/fastembed \
     /app/.venv/bin/python -c "\
 import os; \
 print(f'FASTEMBED_CACHE_PATH: {os.environ.get(\"FASTEMBED_CACHE_PATH\")}'); \
 from fastembed import TextEmbedding; \
 print('Downloading embedding model...'); \
 model = TextEmbedding(model_name='BAAI/bge-small-en-v1.5'); \
-print('Model downloaded successfully')" && \
-    echo "Verifying cache contents:" && \
-    ls -la /app/.cache/fastembed/
+print('Model downloaded successfully')"
 
 # Pre-download tiktoken encodings for offline use
 RUN /app/.venv/bin/python -c "\

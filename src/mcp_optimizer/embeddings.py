@@ -52,6 +52,7 @@ class EmbeddingManager:
             threads: Number of threads to use for embedding generation.
                     None = use all available CPU cores (default FastEmbed behavior).
                     Set to 1-4 to limit CPU usage in production.
+            fastembed_cache_path: Optional path to FastEmbed model cache directory.
         """
         self.model_name = model_name
         self._model: TextEmbedding | None = None
