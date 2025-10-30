@@ -64,7 +64,7 @@ jobs:
         run: |
           cd claude-code-harness
           export ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}"
-          uv run python -m src ./configs/test/gha.json --setup ./configs/test/gha_server_setup.json
+          uv run python -m src ./configs/test/gha.json --setup ./configs/test/gha_server_setup.json --persist-servers
           thv logs mcp-optimizer > ./mcp-optimizer-server.log || echo "Failed to get mcp-optimizer logs"
         continue-on-error: true
 
