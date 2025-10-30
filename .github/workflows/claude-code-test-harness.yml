@@ -1,0 +1,63 @@
+# Runs the claude-code-test-harness to gather metrics on performance with Claude Code.
+name: Claude Code Test Harness
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  claude-code-test-harness:
+    name: Claude Code Test Harness
+    runs-on: ubuntu-latest
+
+    steps:
+      # pull and build mcp-optimizer for deployment in the test harness
+      - name: Checkout mcp-optimizer code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Build mcp-optimizer Docker image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          cache-from: type=gha
+          tags: mcp-optimizer:latest
+
+      # install uv and thv
+      - name: Install uv
+        uses: astral-sh/setup-uv@85856786d1ce8acfbcc2f13a5f3fbd6b938f9f41 # v7.1.2
+        with:
+          enable-cache: true
+          python-version: '3.13'
+
+      - name: Install ToolHive
+        uses: StacklokLabs/toolhive-actions/install@6a095f99aa2fd6cd92cf0bb94bdf509b99820c06 # v0.0.3
+
+      # pull the claude-code-harness code
+      - name: Checkout claude-code-harness code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          repository: StacklokLabs/claude-code-harness
+          token: ${{ secrets.GHA_CLAUDE_CODE_HARNESS_READ_PAT }}
+          path: claude-code-harness
+
+      # Run the test harness
+      - name: Run Claude Code Test Harness
+        run: |
+          cd claude-code-harness
+          uv run python -m src ./configs/test/gha.json --setup ./configs/test/gha_server_setup.json
+
+      # Upload the results as an artifact
+      - name: Upload Test Harness Run Logs
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: claude-code-harness-logs
+          path: claude-code-harness/logs/*.jsonl
