@@ -48,13 +48,13 @@ jobs:
       - name: Install Claude CLI
         run: |
           npm install -g @anthropic-ai/claude-code
-          
+
       # pull the claude-code-harness code
       - name: Checkout claude-code-harness code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           repository: StacklokLabs/claude-code-harness
-          ref: main
+          ref: wait-for-running_2025-10-30
           # PAT with read-only access to the claude-code-harness repo
           token: ${{ secrets.GHA_CLAUDE_CODE_HARNESS_READ_PAT }}
           path: claude-code-harness
