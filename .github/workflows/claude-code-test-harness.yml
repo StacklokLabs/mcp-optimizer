@@ -49,6 +49,17 @@ jobs:
         run: |
           npm install -g @anthropic-ai/claude-code
 
+      # Start toolhive server
+      - name: Run ToolHive server
+        run: |
+          thv serve --host 0.0.0.0 --port 9090 &
+          echo "Waiting for ToolHive server to start..."
+          sleep 5
+          echo "Checking ToolHive API is accessible..."
+          curl -v http://localhost:9090/api/v1beta/version || echo "Failed to connect to ToolHive API"
+          echo "Checking from Docker bridge IP..."
+          curl -v http://172.17.0.1:9090/api/v1beta/version || echo "Failed to connect via Docker bridge IP"
+
       # pull the claude-code-harness code
       - name: Checkout claude-code-harness code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
