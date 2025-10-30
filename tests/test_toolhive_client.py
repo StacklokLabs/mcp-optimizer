@@ -58,6 +58,7 @@ def toolhive_client(monkeypatch):
     # Mock the port scanning to avoid network calls during testing
     client = ToolhiveClient(
         host="127.0.0.1",
+        workload_host="127.0.0.1",
         port=8080,
         scan_port_start=50000,
         scan_port_end=50100,
@@ -173,6 +174,7 @@ async def test_context_manager(monkeypatch):
 
     async with ToolhiveClient(
         host="127.0.0.1",
+        workload_host="127.0.0.1",
         port=8080,
         scan_port_start=50000,
         scan_port_end=50100,
@@ -204,6 +206,7 @@ async def test_connect_disconnect(monkeypatch):
 
     client = ToolhiveClient(
         host="127.0.0.1",
+        workload_host="127.0.0.1",
         port=8080,
         scan_port_start=50000,
         scan_port_end=50100,
@@ -241,6 +244,7 @@ async def test_client_lazy_initialization(monkeypatch):
 
     client = ToolhiveClient(
         host="127.0.0.1",
+        workload_host="127.0.0.1",
         port=8080,
         scan_port_start=50000,
         scan_port_end=50100,
@@ -276,6 +280,7 @@ def test_port_scanning_not_available(monkeypatch):
     ):
         ToolhiveClient(
             host="127.0.0.1",
+            workload_host="127.0.0.1",
             port=None,
             scan_port_start=50000,
             scan_port_end=50100,
@@ -303,6 +308,7 @@ def test_port_scanning_finds_port(monkeypatch):
 
     client = ToolhiveClient(
         host="127.0.0.1",
+        workload_host="127.0.0.1",
         port=None,
         scan_port_start=50000,
         scan_port_end=50100,
@@ -334,6 +340,7 @@ def test_fallback_to_port_scanning(monkeypatch):
 
     client = ToolhiveClient(
         host="127.0.0.1",
+        workload_host="127.0.0.1",
         port=8080,
         scan_port_start=50000,
         scan_port_end=50100,
@@ -554,8 +561,8 @@ async def test_get_workload_details_replaces_localhost(
         # Call the method
         result = await client.get_workload_details("test-server")
 
-        # Verify that localhost was replaced with the toolhive host
-        assert result.url == f"http://{toolhive_client.thv_host}:8080/mcp"
+        # Verify that localhost was replaced with the workload host
+        assert result.url == f"http://{toolhive_client.workload_host}:8080/mcp"
 
 
 @pytest.mark.asyncio
@@ -598,3 +605,264 @@ async def test_get_workload_details_timeout(toolhive_client):
         # Call the method and expect an exception
         with pytest.raises(httpx.TimeoutException):
             await client.get_workload_details("test-server")
+
+
+# Tests for replace_localhost_in_url method
+
+
+def test_replace_localhost_in_url_with_none(monkeypatch):
+    """Test replace_localhost_in_url with None URL."""
+
+    def mock_discover_port(self, port):
+        self.thv_port = 8080
+        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+
+    monkeypatch.setattr(
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
+        mock_discover_port,
+    )
+
+    client = ToolhiveClient(
+        host="127.0.0.1",
+        workload_host="host.docker.internal",
+        port=8080,
+        scan_port_start=50000,
+        scan_port_end=50100,
+        timeout=5.0,
+        max_retries=3,
+        initial_backoff=1.0,
+        max_backoff=60.0,
+    )
+
+    result = client.replace_localhost_in_url(None)
+    assert result is None
+
+
+def test_replace_localhost_in_url_with_empty_string(monkeypatch):
+    """Test replace_localhost_in_url with empty string."""
+
+    def mock_discover_port(self, port):
+        self.thv_port = 8080
+        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+
+    monkeypatch.setattr(
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
+        mock_discover_port,
+    )
+
+    client = ToolhiveClient(
+        host="127.0.0.1",
+        workload_host="host.docker.internal",
+        port=8080,
+        scan_port_start=50000,
+        scan_port_end=50100,
+        timeout=5.0,
+        max_retries=3,
+        initial_backoff=1.0,
+        max_backoff=60.0,
+    )
+
+    result = client.replace_localhost_in_url("")
+    assert result == ""
+
+
+def test_replace_localhost_in_url_with_localhost(monkeypatch):
+    """Test replace_localhost_in_url replaces localhost with workload_host."""
+
+    def mock_discover_port(self, port):
+        self.thv_port = 8080
+        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+
+    monkeypatch.setattr(
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
+        mock_discover_port,
+    )
+
+    client = ToolhiveClient(
+        host="127.0.0.1",
+        workload_host="host.docker.internal",
+        port=8080,
+        scan_port_start=50000,
+        scan_port_end=50100,
+        timeout=5.0,
+        max_retries=3,
+        initial_backoff=1.0,
+        max_backoff=60.0,
+    )
+
+    result = client.replace_localhost_in_url("http://localhost:8080/sse")
+    assert result == "http://host.docker.internal:8080/sse"
+
+
+def test_replace_localhost_in_url_with_127_0_0_1(monkeypatch):
+    """Test replace_localhost_in_url replaces 127.0.0.1 with workload_host."""
+
+    def mock_discover_port(self, port):
+        self.thv_port = 8080
+        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+
+    monkeypatch.setattr(
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
+        mock_discover_port,
+    )
+
+    client = ToolhiveClient(
+        host="127.0.0.1",
+        workload_host="host.docker.internal",
+        port=8080,
+        scan_port_start=50000,
+        scan_port_end=50100,
+        timeout=5.0,
+        max_retries=3,
+        initial_backoff=1.0,
+        max_backoff=60.0,
+    )
+
+    result = client.replace_localhost_in_url("http://127.0.0.1:9000/mcp")
+    assert result == "http://host.docker.internal:9000/mcp"
+
+
+def test_replace_localhost_in_url_with_regular_hostname(monkeypatch):
+    """Test replace_localhost_in_url does not replace regular hostnames."""
+
+    def mock_discover_port(self, port):
+        self.thv_port = 8080
+        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+
+    monkeypatch.setattr(
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
+        mock_discover_port,
+    )
+
+    client = ToolhiveClient(
+        host="127.0.0.1",
+        workload_host="host.docker.internal",
+        port=8080,
+        scan_port_start=50000,
+        scan_port_end=50100,
+        timeout=5.0,
+        max_retries=3,
+        initial_backoff=1.0,
+        max_backoff=60.0,
+    )
+
+    result = client.replace_localhost_in_url("https://api.github.com/mcp")
+    assert result == "https://api.github.com/mcp"
+
+
+def test_replace_localhost_in_url_localhost_in_path_only(monkeypatch):
+    """Test replace_localhost_in_url only replaces hostname, not path."""
+
+    def mock_discover_port(self, port):
+        self.thv_port = 8080
+        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+
+    monkeypatch.setattr(
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
+        mock_discover_port,
+    )
+
+    client = ToolhiveClient(
+        host="127.0.0.1",
+        workload_host="host.docker.internal",
+        port=8080,
+        scan_port_start=50000,
+        scan_port_end=50100,
+        timeout=5.0,
+        max_retries=3,
+        initial_backoff=1.0,
+        max_backoff=60.0,
+    )
+
+    # Hostname is example.com, but path contains 'localhost'
+    # Should NOT replace localhost in the path
+    result = client.replace_localhost_in_url("http://example.com/api/localhost/data")
+    assert result == "http://example.com/api/localhost/data"
+
+
+def test_replace_localhost_in_url_with_port_number(monkeypatch):
+    """Test replace_localhost_in_url works correctly with various port numbers."""
+
+    def mock_discover_port(self, port):
+        self.thv_port = 8080
+        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+
+    monkeypatch.setattr(
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
+        mock_discover_port,
+    )
+
+    client = ToolhiveClient(
+        host="127.0.0.1",
+        workload_host="host.docker.internal",
+        port=8080,
+        scan_port_start=50000,
+        scan_port_end=50100,
+        timeout=5.0,
+        max_retries=3,
+        initial_backoff=1.0,
+        max_backoff=60.0,
+    )
+
+    # Test with different port numbers
+    result1 = client.replace_localhost_in_url("http://localhost:3000/api")
+    assert result1 == "http://host.docker.internal:3000/api"
+
+    result2 = client.replace_localhost_in_url("http://127.0.0.1:50001/sse#test")
+    assert result2 == "http://host.docker.internal:50001/sse#test"
+
+
+def test_replace_localhost_in_url_with_https(monkeypatch):
+    """Test replace_localhost_in_url works with HTTPS URLs."""
+
+    def mock_discover_port(self, port):
+        self.thv_port = 8080
+        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+
+    monkeypatch.setattr(
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
+        mock_discover_port,
+    )
+
+    client = ToolhiveClient(
+        host="127.0.0.1",
+        workload_host="host.docker.internal",
+        port=8080,
+        scan_port_start=50000,
+        scan_port_end=50100,
+        timeout=5.0,
+        max_retries=3,
+        initial_backoff=1.0,
+        max_backoff=60.0,
+    )
+
+    result = client.replace_localhost_in_url("https://localhost:443/secure")
+    assert result == "https://host.docker.internal:443/secure"
+
+
+def test_replace_localhost_in_url_with_fragment(monkeypatch):
+    """Test replace_localhost_in_url preserves URL fragments."""
+
+    def mock_discover_port(self, port):
+        self.thv_port = 8080
+        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+
+    monkeypatch.setattr(
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
+        mock_discover_port,
+    )
+
+    client = ToolhiveClient(
+        host="127.0.0.1",
+        workload_host="host.docker.internal",
+        port=8080,
+        scan_port_start=50000,
+        scan_port_end=50100,
+        timeout=5.0,
+        max_retries=3,
+        initial_backoff=1.0,
+        max_backoff=60.0,
+    )
+
+    result = client.replace_localhost_in_url("http://localhost:8080/sse#server-name")
+    assert result == "http://host.docker.internal:8080/sse#server-name"

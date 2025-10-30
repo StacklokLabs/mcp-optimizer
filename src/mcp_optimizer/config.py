@@ -59,6 +59,9 @@ class MCPOptimizerConfig(BaseModel):
     toolhive_host: str = Field(
         default="localhost", min_length=1, description="Host for ToolHive API"
     )
+    workload_host: str = Field(
+        default="localhost", min_length=1, description="Host for MCP workload connections"
+    )
     toolhive_port: int | None = Field(
         default=None, ge=1024, le=65535, description="Port for ToolHive API (1024-65535)"
     )
@@ -475,6 +478,7 @@ def _populate_config_from_env() -> dict[str, Any]:
         "MCP_PORT": "mcp_port",
         "RELOAD_SERVER": "reload_server",
         "TOOLHIVE_HOST": "toolhive_host",
+        "WORKLOAD_HOST": "workload_host",
         "TOOLHIVE_PORT": "toolhive_port",
         "TOOLHIVE_START_PORT_SCAN": "toolhive_start_port_scan",
         "TOOLHIVE_END_PORT_SCAN": "toolhive_end_port_scan",

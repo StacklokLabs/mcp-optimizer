@@ -56,6 +56,7 @@ def toolhive_client(monkeypatch):
 
     return ToolhiveClient(
         host="localhost",
+        workload_host="localhost",
         port=8080,
         scan_port_start=50000,
         scan_port_end=50100,

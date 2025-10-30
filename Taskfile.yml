@@ -102,6 +102,7 @@ tasks:
     desc: Run the application locally
     env:
       TOOLHIVE_HOST: "localhost"
+      WORKLOAD_HOST: "localhost"
       TOOLHIVE_PORT: "8080"
     cmds:
       - uv run mtm
