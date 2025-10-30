@@ -5,7 +5,7 @@ Toolhive API client for discovering and managing MCP server workloads.
 import asyncio
 from functools import wraps
 from typing import Any, Awaitable, Callable, Self, TypeVar
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 import structlog
@@ -43,6 +43,7 @@ class ToolhiveClient:
     def __init__(
         self,
         host: str,
+        workload_host: str,
         port: int | None,
         scan_port_start: int,
         scan_port_end: int,
@@ -57,6 +58,7 @@ class ToolhiveClient:
 
         Args:
             host: Toolhive server host
+            workload_host: Host for MCP workload connections
             port: Toolhive server port
             scan_port_start: Start of port range to scan for Toolhive
             scan_port_end: End of port range to scan for Toolhive
@@ -68,6 +70,7 @@ class ToolhiveClient:
                 (useful when ToolHive is not needed, e.g., K8s mode)
         """
         self.thv_host = host
+        self.workload_host = workload_host
         self.timeout = timeout
         self.max_retries = max_retries
         self.initial_backoff = initial_backoff
@@ -379,6 +382,35 @@ class ToolhiveClient:
             self._client = httpx.AsyncClient(timeout=self.timeout)
         return self._client
 
+    def replace_localhost_in_url(self, url: str | None) -> str | None:
+        """
+        Replace localhost/127.0.0.1 with the workload host in a URL.
+
+        This is required since in docker/podman containers, we cannot use
+        localhost/127.0.0.1 to reach services on the host machine.
+
+        Args:
+            url: The URL to process (can be None)
+
+        Returns:
+            The URL with localhost/127.0.0.1 replaced by workload_host,
+            or None if input was None
+        """
+        if not url:
+            return url
+
+        parsed_url = urlparse(url)
+        hostname = parsed_url.hostname
+
+        if hostname and hostname in ("localhost", "127.0.0.1"):
+            # Replace hostname only in netloc, not in path/query/fragment
+            new_netloc = parsed_url.netloc.replace(hostname, self.workload_host, 1)
+            parsed = parsed_url._replace(netloc=new_netloc)
+            # urlunparse returns str when input is from urlparse(str)
+            return str(urlunparse(parsed))
+
+        return url
+
     async def list_workloads(self, all_workloads: bool = False) -> WorkloadListResponse:
         """
         Get a list of workloads from Toolhive.
@@ -410,15 +442,11 @@ class ToolhiveClient:
                 logger.warning("No workloads found", all_workloads=all_workloads)
                 return WorkloadListResponse(workloads=[])
 
-            # Replace the localhost/127.0.0.1 host with the toolhive host
+            # Replace the localhost/127.0.0.1 host with the workload host
             # This is required since in docker/podman container, we cannot use
             # localhost/127.0.0.1
             for workload in workload_list.workloads:
-                if workload.url:
-                    parsed_url = urlparse(workload.url)
-                    workload_host = parsed_url.hostname
-                    if workload_host in ("localhost", "127.0.0.1"):
-                        workload.url = workload.url.replace(workload_host, self.thv_host)
+                workload.url = self.replace_localhost_in_url(workload.url)
 
             logger.info(
                 "Successfully fetched workloads",
@@ -458,12 +486,8 @@ class ToolhiveClient:
             data = response.json()
             workload = Workload.model_validate(data)
 
-            # Replace localhost/127.0.0.1 with the toolhive host (same as list_workloads)
-            if workload.url:
-                parsed_url = urlparse(workload.url)
-                workload_host = parsed_url.hostname
-                if workload_host in ("localhost", "127.0.0.1"):
-                    workload.url = workload.url.replace(workload_host, self.thv_host)
+            # Replace localhost/127.0.0.1 with the workload host (same as list_workloads)
+            workload.url = self.replace_localhost_in_url(workload.url)
 
             logger.info(
                 "Successfully fetched workload details",

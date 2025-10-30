@@ -154,6 +154,7 @@ def initialize_server_components(config: MCPOptimizerConfig) -> None:
     mcp.settings.port = config.mcp_port
     toolhive_client = ToolhiveClient(
         host=config.toolhive_host,
+        workload_host=config.workload_host,
         port=config.toolhive_port,
         scan_port_start=config.toolhive_start_port_scan,
         scan_port_end=config.toolhive_end_port_scan,

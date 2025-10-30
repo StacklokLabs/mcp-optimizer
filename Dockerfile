@@ -106,6 +106,7 @@ USER app
 
 # Set default environment variables for container deployment
 ENV TOOLHIVE_HOST=host.docker.internal
+ENV WORKLOAD_HOST=host.docker.internal
 ENV FASTEMBED_CACHE_PATH=/app/.cache/fastembed
 ENV TIKTOKEN_CACHE_DIR=/app/.cache/tiktoken
 ENV COLORED_LOGS=false

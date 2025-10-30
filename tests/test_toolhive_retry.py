@@ -40,6 +40,7 @@ def retry_client(monkeypatch):
 
     client = ToolhiveClient(
         host="localhost",
+        workload_host="localhost",
         port=50001,
         scan_port_start=50000,
         scan_port_end=50100,
@@ -86,6 +87,7 @@ class TestPortRediscovery:
 
         client = ToolhiveClient(
             host="localhost",
+            workload_host="localhost",
             port=50001,
             scan_port_start=50000,
             scan_port_end=50100,
@@ -130,6 +132,7 @@ class TestPortRediscovery:
 
         client = ToolhiveClient(
             host="localhost",
+            workload_host="localhost",
             port=50001,
             scan_port_start=50000,
             scan_port_end=50100,
@@ -176,6 +179,7 @@ class TestPortRediscovery:
 
         client = ToolhiveClient(
             host="localhost",
+            workload_host="localhost",
             port=50001,
             scan_port_start=50000,
             scan_port_end=50100,
@@ -221,6 +225,7 @@ class TestPortRediscovery:
 
         client = ToolhiveClient(
             host="localhost",
+            workload_host="localhost",
             port=50001,
             scan_port_start=50000,
             scan_port_end=50100,
@@ -395,6 +400,7 @@ class TestRetryLogic:
 
         client = ToolhiveClient(
             host="localhost",
+            workload_host="localhost",
             port=50001,
             scan_port_start=50000,
             scan_port_end=50100,
@@ -664,6 +670,7 @@ class TestRetryConfiguration:
 
         client = ToolhiveClient(
             host="localhost",
+            workload_host="localhost",
             port=50001,
             scan_port_start=50000,
             scan_port_end=50100,
@@ -690,6 +697,7 @@ class TestRetryConfiguration:
 
         client = ToolhiveClient(
             host="localhost",
+            workload_host="localhost",
             port=50001,
             scan_port_start=50000,
             scan_port_end=50100,
@@ -717,6 +725,7 @@ class TestRetryConfiguration:
 
         client = ToolhiveClient(
             host="localhost",
+            workload_host="localhost",
             port=50001,
             scan_port_start=50000,
             scan_port_end=50100,
