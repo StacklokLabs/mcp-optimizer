@@ -4,6 +4,9 @@ name: Claude Code Test Harness
 on:
   workflow_call:
   workflow_dispatch:
+  pull_request:
+    # TODO: remove this trigger once the workflow is well tested
+    types: [synchronize]
 
 permissions:
   contents: read
