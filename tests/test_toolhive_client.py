@@ -780,6 +780,40 @@ def test_replace_localhost_in_url_localhost_in_path_only(monkeypatch):
     assert result == "http://example.com/api/localhost/data"
 
 
+def test_replace_localhost_in_url_localhost_in_hostname_and_path(monkeypatch):
+    """Test that localhost in path is NOT replaced when localhost is also the hostname."""
+
+    def mock_discover_port(self, port):
+        self.thv_port = 8080
+        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+
+    monkeypatch.setattr(
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
+        mock_discover_port,
+    )
+
+    client = ToolhiveClient(
+        host="127.0.0.1",
+        workload_host="host.docker.internal",
+        port=8080,
+        scan_port_start=50000,
+        scan_port_end=50100,
+        timeout=5.0,
+        max_retries=3,
+        initial_backoff=1.0,
+        max_backoff=60.0,
+    )
+
+    # Hostname is localhost AND path contains 'localhost'
+    # Should ONLY replace localhost in the hostname, NOT in the path
+    result = client.replace_localhost_in_url("http://localhost:8080/api/localhost/data")
+    assert result == "http://host.docker.internal:8080/api/localhost/data"
+
+    # Test with 127.0.0.1 as well
+    result2 = client.replace_localhost_in_url("http://127.0.0.1:8080/path/127.0.0.1/data")
+    assert result2 == "http://host.docker.internal:8080/path/127.0.0.1/data"
+
+
 def test_replace_localhost_in_url_with_port_number(monkeypatch):
     """Test replace_localhost_in_url works correctly with various port numbers."""
 

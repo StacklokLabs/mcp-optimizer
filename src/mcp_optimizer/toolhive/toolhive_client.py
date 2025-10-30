@@ -5,7 +5,7 @@ Toolhive API client for discovering and managing MCP server workloads.
 import asyncio
 from functools import wraps
 from typing import Any, Awaitable, Callable, Self, TypeVar
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 import structlog
@@ -403,7 +403,11 @@ class ToolhiveClient:
         hostname = parsed_url.hostname
 
         if hostname and hostname in ("localhost", "127.0.0.1"):
-            return url.replace(hostname, self.workload_host)
+            # Replace hostname only in netloc, not in path/query/fragment
+            new_netloc = parsed_url.netloc.replace(hostname, self.workload_host, 1)
+            parsed = parsed_url._replace(netloc=new_netloc)
+            # urlunparse returns str when input is from urlparse(str)
+            return str(urlunparse(parsed))
 
         return url
 

@@ -59,6 +59,7 @@ jobs:
           --transport streamable-http
           --proxy-port 8080
           --env TOOLHIVE_HOST=172.17.0.1
+          --env WORKLOAD_HOST=172.17.0.1
           --env TOOLHIVE_PORT=9090
           --env WORKLOAD_POLLING_INTERVAL=2
           --env ALLOWED_GROUPS=default
