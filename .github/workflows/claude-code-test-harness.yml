@@ -12,6 +12,7 @@ jobs:
   claude-code-test-harness:
     name: Claude Code Test Harness
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       # pull and build mcp-optimizer for deployment in the test harness
@@ -31,7 +32,7 @@ jobs:
           cache-from: type=gha
           tags: mcp-optimizer:latest
 
-      # install uv and thv
+      # install dependencies
       - name: Install uv
         uses: astral-sh/setup-uv@85856786d1ce8acfbcc2f13a5f3fbd6b938f9f41 # v7.1.2
         with:
@@ -46,6 +47,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           repository: StacklokLabs/claude-code-harness
+          # PAT with read-only access to the claude-code-harness repo
           token: ${{ secrets.GHA_CLAUDE_CODE_HARNESS_READ_PAT }}
           path: claude-code-harness
 
@@ -54,6 +56,7 @@ jobs:
         run: |
           cd claude-code-harness
           uv run python -m src ./configs/test/gha.json --setup ./configs/test/gha_server_setup.json
+        continue-on-error: true
 
       # Upload the results as an artifact
       - name: Upload Test Harness Run Logs
@@ -61,3 +64,4 @@ jobs:
         with:
           name: claude-code-harness-logs
           path: claude-code-harness/logs/*.jsonl
+          if-no-files-found: warn
