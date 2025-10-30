@@ -45,6 +45,10 @@ jobs:
       - name: Install ToolHive
         uses: StacklokLabs/toolhive-actions/install@6a095f99aa2fd6cd92cf0bb94bdf509b99820c06 # v0.0.3
 
+      - name: Install Claude CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          
       # pull the claude-code-harness code
       - name: Checkout claude-code-harness code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
