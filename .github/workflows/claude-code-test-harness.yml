@@ -70,13 +70,14 @@ jobs:
           token: ${{ secrets.GHA_CLAUDE_CODE_HARNESS_READ_PAT }}
           path: claude-code-harness
 
-      # Run the test harness
+      # Run the test harness, capture mcp-optimizer server logs
       - name: Run Claude Code Test Harness
         run: |
           cd claude-code-harness
           export ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}"
           uv run python -m src ./configs/test/gha.json --setup ./configs/test/gha_server_setup.json --persist-servers
           thv logs mcp-optimizer > ./mcp-optimizer-server.log || echo "Failed to get mcp-optimizer logs"
+          thv list --format json > ./thv-list.json || echo "Failed to list thv servers"
         continue-on-error: true
 
       # Upload the results as an artifact
@@ -93,4 +94,12 @@ jobs:
         with:
           name: mcp-optimizer-server-logs
           path: ./claude-code-harness/mcp-optimizer-server.log
+          if-no-files-found: warn
+
+      # upload thv list output
+      - name: Upload thv list output
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: thv-list
+          path: ./claude-code-harness/thv-list.json
           if-no-files-found: warn
