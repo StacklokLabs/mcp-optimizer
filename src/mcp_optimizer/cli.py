@@ -1,4 +1,3 @@
-import asyncio
 import os
 import signal
 from pathlib import Path
@@ -10,9 +9,7 @@ import uvicorn
 
 from mcp_optimizer.config import ConfigurationError, MCPOptimizerConfig, get_config
 from mcp_optimizer.configure_logging import configure_logging
-from mcp_optimizer.db.config import DatabaseConfig, run_migrations
-from mcp_optimizer.embeddings import EmbeddingManager
-from mcp_optimizer.ingestion import IngestionService
+from mcp_optimizer.db.config import run_migrations
 from mcp_optimizer.polling_manager import configure_polling, shutdown_polling
 from mcp_optimizer.server import initialize_server_components
 from mcp_optimizer.toolhive.toolhive_client import ToolhiveClient
@@ -218,54 +215,6 @@ def main(**kwargs: Any) -> None:
     initialize_server_components(config)
 
     try:
-        # Pass config values to components instead of using get_config()
-        db_config = DatabaseConfig(database_url=config.async_db_url)
-        embedding_manager = EmbeddingManager(
-            model_name=config.embedding_model_name,
-            enable_cache=config.enable_embedding_cache,
-            threads=config.embedding_threads,
-            fastembed_cache_path=config.fastembed_cache_path,
-        )
-        ingestion_service = IngestionService(
-            db_config,
-            embedding_manager,
-            mcp_timeout=config.mcp_timeout,
-            registry_ingestion_batch_size=config.registry_ingestion_batch_size,
-            workload_ingestion_batch_size=config.workload_ingestion_batch_size,
-            encoding=config.encoding,
-            skipped_workloads=config.skipped_workloads,
-            runtime_mode=config.runtime_mode,
-            k8s_api_server_url=config.k8s_api_server_url,
-            k8s_namespace=config.k8s_namespace,
-            k8s_all_namespaces=config.k8s_all_namespaces,
-        )
-
-        async def run_ingestion():
-            """Run ingestion tasks in a single event loop."""
-            await ingestion_service.ingest_registry(toolhive_client=toolhive_client)
-            await ingestion_service.ingest_workloads(toolhive_client=toolhive_client)
-            # Dispose the database engine to prevent event loop conflicts
-            # The server will create a new engine in its own event loop
-            await db_config.close()
-
-        logger.info("Starting initial ingestion process")
-        try:
-            asyncio.run(run_ingestion())
-            logger.info("Initial ingestion process completed")
-        except Exception as e:
-            # Import here to avoid circular dependency
-            from mcp_optimizer.toolhive.toolhive_client import ToolhiveConnectionError
-
-            if isinstance(e, ToolhiveConnectionError):
-                logger.critical(
-                    "Unable to connect to ToolHive after exhausting all retries. "
-                    "Please ensure ToolHive is running and accessible.",
-                    error=str(e),
-                )
-                raise click.ClickException(f"Failed to connect to ToolHive: {e}. Exiting.") from e
-            # Re-raise other exceptions
-            raise
-
         # Configure polling manager for the server
         logger.info(
             "Configuring polling manager",

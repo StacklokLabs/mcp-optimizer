@@ -301,10 +301,6 @@ class PollingManager:
         # Store the event loop for later use by targeted polling
         self._loop = asyncio.get_running_loop()
 
-        startup_time_sec = min(self.workload_polling_interval, self.registry_polling_interval)
-        logger.info("Delaying polling start to allow server startup", seconds=startup_time_sec)
-        await asyncio.sleep(startup_time_sec)
-
         logger.info(
             "Creating polling tasks",
             workload_interval_seconds=self.workload_polling_interval,
