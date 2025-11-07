@@ -149,13 +149,22 @@ class ToolhiveClient:
             asyncio.run(self._discover_port_async(port))
 
     def _parse_toolhive_version(self, version_str: str) -> Version:
-        """Parse ToolHive version string into a Version object."""
+        """Parse ToolHive version string into a Version object.
+
+        For development/build versions that don't follow SemVer, returns a default version.
+        """
         try:
             version = Version.parse(version_str.replace("v", ""))
             return version
         except (ValueError, TypeError) as e:
-            logger.warning("Invalid semver version string", version=version_str, error=str(e))
-            raise ToolhiveScanError(f"Invalid ToolHive version string: {version_str}") from e
+            # For development builds like "build-7c3a3077", use a default version
+            # This allows the connection to succeed while still logging the issue
+            logger.info(
+                "Using default version for non-semver ToolHive build",
+                version=version_str,
+                default_version="0.0.0-dev"
+            )
+            return Version.parse("0.0.0-dev")
 
     async def _is_toolhive_available(self, host: str, port: int) -> tuple[Version, int]:
         """
@@ -165,7 +174,7 @@ class ToolhiveClient:
             Tuple of (Version object, port) if available, raises ToolhiveScanError otherwise
         """
         try:
-            async with httpx.AsyncClient(timeout=1.0) as client:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(f"http://{host}:{port}/api/v1beta/version")
                 response.raise_for_status()
 
