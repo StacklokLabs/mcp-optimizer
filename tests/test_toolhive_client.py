@@ -356,6 +356,7 @@ async def test_is_toolhive_available_validates_response_format(monkeypatch):  # 
     """
     client = ToolhiveClient.__new__(ToolhiveClient)
     client.thv_host = "localhost"
+    client.timeout = 5  # Set the timeout attribute that _is_toolhive_available needs
 
     # Test case 1: Service returns 200 OK but response has no 'version' field
     mock_response_wrong_format = Mock()
