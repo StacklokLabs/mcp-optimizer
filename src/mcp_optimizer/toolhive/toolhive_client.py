@@ -156,7 +156,7 @@ class ToolhiveClient:
         try:
             version = Version.parse(version_str.replace("v", ""))
             return version
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError):
             # For development builds like "build-7c3a3077", use a default version
             # This allows the connection to succeed while still logging the issue
             logger.info(
