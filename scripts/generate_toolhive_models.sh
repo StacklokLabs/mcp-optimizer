@@ -4,50 +4,39 @@ set -euo pipefail
 
 OUTPUT_DIR="src/mcp_optimizer/toolhive/api_models"
 TEMP_DIR="$(mktemp -d)"
-THV_PID=""
-MANAGE_THV="${MANAGE_THV:-true}"
 
 # Cleanup function
 cleanup() {
     local exit_code=$?
-    if [ -n "$THV_PID" ] && [ "$MANAGE_THV" = "true" ]; then
-        # Check if process exists before attempting to kill
-        if kill -0 "$THV_PID" 2>/dev/null; then
-            echo "Stopping thv serve (PID: $THV_PID)..."
-            kill "$THV_PID" 2>/dev/null || true
-            wait "$THV_PID" 2>/dev/null || true
-        fi
-    fi
     rm -rf "$TEMP_DIR"
     exit $exit_code
 }
 
 trap cleanup EXIT INT TERM
 
-# Start thv serve if we're managing it
-if [ "$MANAGE_THV" = "true" ]; then
-    echo "Starting thv serve --openapi on port 8080..."
-    thv serve --openapi --port 8080 &
-    THV_PID=$!
+# Verify thv serve is running and accessible
+echo "Checking if thv serve is accessible..."
+MAX_ATTEMPTS=5
+for i in $(seq 1 $MAX_ATTEMPTS); do
+    if response=$(curl -s --max-time 5 http://127.0.0.1:8080/api/openapi.json 2>&1); then
+        # Validate JSON
+        if echo "$response" | uv run python -m json.tool > /dev/null 2>&1; then
+            # Check for openapi field
+            if echo "$response" | grep -q "openapi"; then
+                echo "thv serve is accessible!"
+                break
+            fi
+        fi
+    fi
 
-    echo "Waiting for thv serve to be ready..."
-    MAX_ATTEMPTS=30
-    for i in $(seq 1 $MAX_ATTEMPTS); do
-        # Check if endpoint returns valid JSON with expected content
-        response=$(curl -s --max-time 5 http://127.0.0.1:8080/api/openapi.json 2>&1)
-        if [ $? -eq 0 ] && echo "$response" | python3 -m json.tool > /dev/null 2>&1 && echo "$response" | grep -q "openapi"; then
-            echo "thv serve is ready!"
-            break
-        fi
-        if [ $i -eq $MAX_ATTEMPTS ]; then
-            echo "ERROR: thv serve did not become ready"
-            echo "Last response: $response"
-            exit 1
-        fi
-        echo "Attempt $i/$MAX_ATTEMPTS: Waiting for OpenAPI endpoint..."
-        sleep 1
-    done
-fi
+    if [ $i -eq $MAX_ATTEMPTS ]; then
+        echo "ERROR: thv serve is not accessible at http://127.0.0.1:8080/api/openapi.json"
+        echo "Please ensure thv serve is running with --openapi flag on port 8080"
+        exit 1
+    fi
+    echo "Attempt $i/$MAX_ATTEMPTS: Waiting for thv serve..."
+    sleep 1
+done
 
 # Save current models to temp directory for comparison
 if [ -d "$OUTPUT_DIR" ]; then
