@@ -117,7 +117,9 @@ jobs:
         id: create-pr
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Ensure PR related actions (quality checks) are triggered, see
+          # https://github.com/peter-evans/create-pull-request/issues/48#issuecomment-536204092
+          token: ${{ secrets.UPDATE_THV_MODELS_GITHUB_TOKEN }}
           commit-message: |
             Update ToolHive API models
 
