@@ -496,6 +496,7 @@ def _populate_config_from_env() -> dict[str, Any]:
         "WORKLOAD_INGESTION_BATCH_SIZE": "workload_ingestion_batch_size",
         "MAX_TOOL_RESPONSE_TOKENS": "max_tool_response_tokens",
         "ALLOWED_GROUPS": "allowed_groups",
+        "SKIPPED_WORKLOADS": "skipped_workloads",
         "RICH_TRACEBACKS": "rich_tracebacks",
         "COLORED_LOGS": "colored_logs",
         "K8S_API_SERVER_URL": "k8s_api_server_url",
