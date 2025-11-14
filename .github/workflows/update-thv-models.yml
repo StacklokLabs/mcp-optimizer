@@ -119,6 +119,7 @@ jobs:
         with:
           # Ensure PR related actions (quality checks) are triggered, see
           # https://github.com/peter-evans/create-pull-request/issues/48#issuecomment-536204092
+          # PAT must have pull_requests R/W and contents R/W permissions for the mcp-optimizer repo
           token: ${{ secrets.UPDATE_THV_MODELS_GITHUB_TOKEN }}
           commit-message: |
             Update ToolHive API models
