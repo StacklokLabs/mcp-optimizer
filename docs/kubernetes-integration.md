@@ -40,7 +40,7 @@ helm upgrade -i toolhive-operator oci://ghcr.io/stacklok/toolhive/toolhive-opera
 
 # 2. Deploy MCP Optimizer
 # Option A: From OCI registry (recommended)
-helm install mcp-optimizer oci://ghcr.io/stacklok/mcp-optimizer/mcp-optimizer -n toolhive-system
+helm install mcp-optimizer oci://ghcr.io/stackloklabs/mcp-optimizer/mcp-optimizer -n toolhive-system
 
 # Option B: From local chart source
 helm install mcp-optimizer ./helm/mcp-optimizer -n toolhive-system
@@ -169,7 +169,7 @@ kubectl get pods -n toolhive-system
 
 ## Building MCP Optimizer Image (Optional for Local Development)
 
-By default, the Helm chart uses published container images from `ghcr.io/stacklok/mcp-optimizer`. For most users, you can skip this section and proceed directly to deployment.
+By default, the Helm chart uses published container images from `ghcr.io/stackloklabs/mcp-optimizer`. For most users, you can skip this section and proceed directly to deployment.
 
 ### For Local Development
 
@@ -319,7 +319,7 @@ Install MCP Optimizer from the published Helm chart in the OCI registry:
 
 ```bash
 # Deploy MCP Optimizer from OCI registry
-helm install mcp-optimizer oci://ghcr.io/stacklok/mcp-optimizer/mcp-optimizer -n toolhive-system
+helm install mcp-optimizer oci://ghcr.io/stackloklabs/mcp-optimizer/mcp-optimizer -n toolhive-system
 ```
 
 This is the recommended approach as it:
@@ -330,7 +330,7 @@ This is the recommended approach as it:
 To install a specific version:
 
 ```bash
-helm install mcp-optimizer oci://ghcr.io/stacklok/mcp-optimizer/mcp-optimizer \
+helm install mcp-optimizer oci://ghcr.io/stackloklabs/mcp-optimizer/mcp-optimizer \
   --version 0.1.0 \
   -n toolhive-system
 ```
@@ -345,7 +345,7 @@ helm install mcp-optimizer ./helm/mcp-optimizer -n toolhive-system
 ```
 
 This uses the default values:
-- Image: `ghcr.io/stacklok/mcp-optimizer` (published image)
+- Image: `ghcr.io/stackloklabs/mcp-optimizer` (published image)
 - Tag: Uses chart `appVersion`
 - Pull Policy: `IfNotPresent`
 
@@ -362,7 +362,7 @@ helm install mcp-optimizer ./helm/mcp-optimizer \
   --set mcpserver.podTemplateSpec.spec.containers[0].imagePullPolicy=Never
 
 # For a custom registry
-helm install mcp-optimizer oci://ghcr.io/stacklok/mcp-optimizer/mcp-optimizer \
+helm install mcp-optimizer oci://ghcr.io/stackloklabs/mcp-optimizer/mcp-optimizer \
   -n toolhive-system \
   --set mcpserver.image.repository=ghcr.io/myorg/mcp-optimizer \
   --set mcpserver.image.tag=v1.0.0
