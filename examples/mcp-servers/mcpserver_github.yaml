@@ -6,7 +6,7 @@ metadata:
 spec:
   image: ghcr.io/github/github-mcp-server:v0.18.0
   transport: stdio
-  proxyMode: sse
+  proxyMode: streamable-http
   port: 8080
   targetPort: 8080
   permissionProfile:

@@ -13,7 +13,7 @@ mcpserver:
   # Container image configuration
   image:
     # Container registry and image name
-    repository: ghcr.io/stacklok/mcp-optimizer
+    repository: ghcr.io/stackloklabs/mcp-optimizer
     # Image tag (defaults to chart appVersion if not set)
     tag: ""
   
