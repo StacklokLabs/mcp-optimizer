@@ -32,9 +32,7 @@ TYPE_OVERRIDES = {
 
 # Fields that should not be exposed via CLI or environment variables
 # These fields can only be set via configuration files
-CLI_EXCLUDED_FIELDS = {
-    "skipped_workloads",  # Config-only field for workload filtering
-}
+CLI_EXCLUDED_FIELDS = {}
 
 
 def _generate_config_params():
