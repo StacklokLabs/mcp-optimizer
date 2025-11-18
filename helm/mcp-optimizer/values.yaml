@@ -35,40 +35,10 @@ mcpserver:
       cpu: "250m"
       memory: "256Mi"
   
-  # Environment variables for mcp-optimizer  
-  env:
-    # Runtime mode - must be "k8s" for Kubernetes deployment
-    - name: RUNTIME_MODE
-      value: "k8s"
-    # Query all namespaces for MCPServers
-    - name: K8S_ALL_NAMESPACES
-      value: "true"
-    # MCP server port
-    - name: MCP_PORT
-      value: "9900"
-    # Logging level
-    - name: LOG_LEVEL
-      value: "INFO"
-    # Workload polling interval (seconds)
-    - name: WORKLOAD_POLLING_INTERVAL
-      value: "60"
-    # Registry polling interval (seconds)
-    - name: REGISTRY_POLLING_INTERVAL
-      value: "300"
-    # Maximum tools to return in search
-    - name: MAX_TOOLS_TO_RETURN
-      value: "8"
-    # Maximum servers to return in search
-    - name: MAX_SERVERS_TO_RETURN
-      value: "5"
-    # Hybrid search semantic ratio (0.0-1.0)
-    - name: HYBRID_SEARCH_SEMANTIC_RATIO
-      value: "0.5"
-    # Database URLs - using writable /tmp location
-    - name: ASYNC_DB_URL
-      value: "sqlite+aiosqlite:///data/mcp_optimizer.db"
-    - name: DB_URL
-      value: "sqlite:///data/mcp_optimizer.db"
+  # Environment variables for mcp-optimizer
+  # NOTE: When using podTemplateSpec, define env vars there instead of here
+  # to avoid duplicates
+  env: []
   
   # Pod template spec (optional) - use this for advanced pod customization
   # When set, this takes precedence over env and resources fields above
@@ -96,8 +66,7 @@ mcpserver:
               value: "k8s"
             - name: K8S_ALL_NAMESPACES
               value: "true"
-            - name: MCP_PORT
-              value: "9900"
+            # MCP_PORT is automatically set by the operator from spec.port
             - name: LOG_LEVEL
               value: "INFO"
             - name: WORKLOAD_POLLING_INTERVAL
