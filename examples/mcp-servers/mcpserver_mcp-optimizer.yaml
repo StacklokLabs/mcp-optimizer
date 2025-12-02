@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-optimizer
+  namespace: toolhive-system
+imagePullSecrets:
+  - name: ghcr-pull-secret
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mcp-optimizer-reader
+rules:
+  # Allow reading MCPServer CRDs to discover MCP servers in the cluster
+  - apiGroups: ["toolhive.stacklok.dev"]
+    resources: ["mcpservers"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mcp-optimizer-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mcp-optimizer-reader
+subjects:
+  - kind: ServiceAccount
+    name: mcp-optimizer
+    namespace: toolhive-system
+---
+apiVersion: toolhive.stacklok.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: mcp-optimizer
+  namespace: toolhive-system
+spec:
+  image: ghcr.io/stackloklabs/mcp-optimizer:0.1.1
+  transport: streamable-http
+  proxyMode: streamable-http
+  port: 9900
+  targetPort: 9900
+  serviceAccount: mcp-optimizer
+  permissionProfile:
+    name: network
+    type: builtin
+  podTemplateSpec:
+    spec:
+      securityContext:
+        fsGroup: 1000
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: mcp
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+          env:
+            - name: SQLITE_TMPDIR
+              value: "/tmp"
+            - name: RUNTIME_MODE
+              value: "k8s"
+            - name: K8S_ALL_NAMESPACES
+              value: "true"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: WORKLOAD_POLLING_INTERVAL
+              value: "60"
+            - name: REGISTRY_POLLING_INTERVAL
+              value: "300"
+            - name: MAX_TOOLS_TO_RETURN
+              value: "8"
+            - name: MAX_SERVERS_TO_RETURN
+              value: "5"
+            - name: HYBRID_SEARCH_SEMANTIC_RATIO
+              value: "0.5"
+            - name: ASYNC_DB_URL
+              value: "sqlite+aiosqlite:///data/mcp_optimizer.db"
+            - name: DB_URL
+              value: "sqlite:///data/mcp_optimizer.db"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+

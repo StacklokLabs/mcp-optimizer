@@ -9,6 +9,7 @@ spec:
   proxyMode: streamable-http
   port: 8080
   targetPort: 8080
+  serviceAccount: mcp-shared-sa
   permissionProfile:
     name: network
     type: builtin

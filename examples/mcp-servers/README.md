@@ -20,6 +20,46 @@ Before deploying these example servers, you must:
 
 ## Quick Start
 
+### 0. Create GitHub Secrets (Required for pulling images and GitHub API access)
+
+Before deploying any servers, create the required GitHub secrets. You can use the same GitHub Personal Access Token for both secrets.
+
+**Option 1: Use the convenience script (Recommended)**
+
+```bash
+# Set your GitHub token and username
+export GITHUB_TOKEN=your_token_here
+export GITHUB_USERNAME=your_username  # Optional, will prompt if not set
+
+# Run the script to create both secrets
+./examples/mcp-servers/create-github-secrets.sh
+```
+
+**Option 2: Create secrets manually**
+
+```bash
+# Set your token and username
+GITHUB_TOKEN=your_token_here
+GITHUB_USERNAME=your_username
+
+# Create the pull secret for ghcr.io
+kubectl create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=$GITHUB_USERNAME \
+  --docker-password=$GITHUB_TOKEN \
+  -n toolhive-system
+
+# Create the GitHub API token secret
+kubectl create secret generic github-token -n toolhive-system \
+  --from-literal=token=$GITHUB_TOKEN
+```
+
+**Note:** You need a GitHub Personal Access Token with:
+- `read:packages` scope for pulling images from ghcr.io
+- GitHub API scopes (repo, read:org, etc.) for MCP server access
+
+The `shared-serviceaccount.yaml` will automatically reference the pull secret, making it available to all MCP servers that use the shared service account.
+
 ### 1. Install Fetch Server
 
 ```bash
@@ -30,16 +70,52 @@ kubectl get mcpserver fetch -n toolhive-system
 ### 2. Install GitHub Server
 
 ```bash
-# Create GitHub token secret first
-kubectl create secret generic github-token -n toolhive-system \
-  --from-literal=token=YOUR_GITHUB_TOKEN_HERE
+# Note: If you used the create-github-secrets.sh script in step 0, 
+# the github-token secret already exists. You can skip creating it again.
 
 # Deploy GitHub server
 kubectl apply -f examples/mcp-servers/mcpserver_github.yaml
 kubectl get mcpserver github -n toolhive-system
 ```
 
-### 3. Verify Deployment
+**Alternative:** If you didn't use the script, create the github-token secret manually:
+```bash
+kubectl create secret generic github-token -n toolhive-system \
+  --from-literal=token=YOUR_GITHUB_TOKEN_HERE
+```
+
+### 3. Install ToolHive Doc MCP Server
+
+The ToolHive Doc MCP server provides documentation search and retrieval capabilities.
+
+```bash
+# Note: This server uses the same github-token secret as the GitHub server
+# If you've already created github-token secret in step 2, you can skip creating it again
+
+# Deploy ToolHive Doc MCP server
+kubectl apply -f examples/mcp-servers/mcpserver_toolhive-doc-mcp.yaml
+kubectl get mcpserver toolhive-doc-mcp -n toolhive-system
+```
+
+### 4. Install MCP Optimizer
+
+MCP Optimizer aggregates tools from all MCP servers in the cluster and provides unified tool discovery.
+
+```bash
+# Deploy MCP Optimizer (includes ServiceAccount and RBAC)
+kubectl apply -f examples/mcp-servers/mcpserver_mcp-optimizer.yaml
+
+# Verify deployment
+kubectl get mcpserver mcp-optimizer -n toolhive-system
+kubectl get pods -n toolhive-system | grep mcp-optimizer
+
+# Check logs to see tool discovery
+kubectl logs -n toolhive-system -l app.kubernetes.io/name=mcp-optimizer --tail=50
+```
+
+**Note:** MCP Optimizer requires RBAC permissions to discover MCPServer resources in the cluster. The example includes the necessary ServiceAccount, ClusterRole, and ClusterRoleBinding.
+
+### 5. Verify Deployment
 
 Check that MCP Optimizer discovers the deployed servers:
 
@@ -87,8 +163,12 @@ For client configuration (Cursor, VSCode, Claude Desktop), see [Connecting Clien
 
 ## Files
 
-- **`mcpserver_fetch.yaml`** - Fetch server for web scraping and URL fetching
-- **`mcpserver_github.yaml`** - GitHub API integration server
+- **`create-github-secrets.sh`** - Convenience script to create both GitHub secrets from GITHUB_TOKEN environment variable
+- **`shared-serviceaccount.yaml`** - Shared ServiceAccount with cluster-wide imagePullSecrets for ghcr.io (applied automatically)
+- **`mcpserver_fetch.yaml`** - Fetch server for web scraping and URL fetching (uses shared ServiceAccount)
+- **`mcpserver_github.yaml`** - GitHub API integration server (uses shared ServiceAccount)
+- **`mcpserver_toolhive-doc-mcp.yaml`** - ToolHive documentation search and retrieval server (uses shared ServiceAccount, shares github-token secret)
+- **`mcpserver_mcp-optimizer.yaml`** - MCP Optimizer server that aggregates tools from all MCP servers (includes its own ServiceAccount with imagePullSecrets and RBAC)
 
 ## Complete Documentation
 

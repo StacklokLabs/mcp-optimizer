@@ -1,0 +1,46 @@
+apiVersion: toolhive.stacklok.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: toolhive-doc-mcp
+  namespace: toolhive-system
+spec:
+  image: ghcr.io/stackloklabs/toolhive-doc-mcp:v0.0.7
+  transport: streamable-http
+  proxyMode: sse
+  port: 8080
+  targetPort: 8080
+  permissionProfile:
+    name: network
+    type: builtin
+  serviceAccount: mcp-shared-sa
+  podTemplateSpec:
+    spec:
+      containers:
+      - name: mcp
+        env:
+        - name: HF_HOME
+          value: /app/.cache/huggingface
+        - name: TRANSFORMERS_CACHE
+          value: /app/.cache/huggingface
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /app/.cache
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}
+  secrets:
+    - name: github-token
+      key: token
+      targetEnvName: GITHUB_TOKEN
+  resources:
+    limits:
+      cpu: 200m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
