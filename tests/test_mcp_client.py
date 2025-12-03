@@ -325,24 +325,26 @@ async def test_workload_url_unchanged_during_list_tools(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "url,proxy_mode,client_mock_name,context_return",
+    "url,proxy_mode,client_mock_name,context_return,expected_normalized_url",
     [
         (
             "http://localhost:8080/mcp/test-server",
             None,
             "streamablehttp_client",
             (AsyncMock(), AsyncMock(), AsyncMock()),
+            "http://localhost:8080/mcp/test-server",  # Already contains /mcp, no normalization
         ),
         (
             "http://localhost:8080/custom/endpoint",
             "streamable-http",
             "streamablehttp_client",
             (AsyncMock(), AsyncMock(), AsyncMock()),
+            "http://localhost:8080/custom/endpoint/mcp",  # Normalized to add /mcp
         ),
     ],
 )
 async def test_workload_url_unchanged_during_call_tool(
-    url, proxy_mode, client_mock_name, context_return, mock_mcp_session
+    url, proxy_mode, client_mock_name, context_return, expected_normalized_url, mock_mcp_session
 ):
     """Test that workload URL remains unchanged during call_tool."""
     workload = Workload(
@@ -368,11 +370,11 @@ async def test_workload_url_unchanged_during_call_tool(
         # Call tool
         await client.call_tool("test_tool", {"param": "value"})
 
-        # Verify URL is unchanged in workload
+        # Verify URL is unchanged in workload (we don't mutate the workload object)
         assert workload.url == url
 
-        # Verify the client was called with the original URL
-        mock_client.assert_called_once_with(url)
+        # Verify the client was called with the normalized URL (normalization happens internally)
+        mock_client.assert_called_once_with(expected_normalized_url)
 
 
 @pytest.mark.asyncio

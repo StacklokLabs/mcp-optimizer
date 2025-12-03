@@ -66,11 +66,15 @@ class MCPServerClient:
             if path.endswith("/sse"):
                 path = path.replace("/sse", "/mcp")
             elif not path.endswith("/mcp"):
-                # If path doesn't end with /mcp or /sse, ensure it ends with /mcp
-                if path.endswith("/"):
-                    path = path + "mcp"
-                else:
-                    path = path + "/mcp"
+                # Only add /mcp if the path doesn't already contain /mcp
+                # This prevents double-adding /mcp to URLs like /mcp/test-server
+                if "/mcp" not in path:
+                    # If path doesn't end with /mcp or /sse, and doesn't contain /mcp,
+                    # ensure it ends with /mcp
+                    if path.endswith("/"):
+                        path = path + "mcp"
+                    else:
+                        path = path + "/mcp"
 
             # Reconstruct URL without fragment and with corrected path
             normalized_tuple = (
