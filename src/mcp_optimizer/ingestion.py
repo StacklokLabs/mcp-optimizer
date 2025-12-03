@@ -1713,6 +1713,16 @@ class IngestionService:
         Returns:
             List of MCP servers with their associated tools
         """
+        # Skip registry ingestion in K8s mode - registry is not available via ToolHive HTTP API
+        # In K8s mode, workloads come from Kubernetes CRDs, not ToolHive's registry API
+        if self.runtime_mode == "k8s":
+            logger.info(
+                "Skipping registry ingestion in K8s mode "
+                "(registry not available via ToolHive HTTP API)",
+                runtime_mode=self.runtime_mode,
+            )
+            return
+
         logger.info(
             "Starting registry ingestion",
             host=toolhive_client.thv_host,
