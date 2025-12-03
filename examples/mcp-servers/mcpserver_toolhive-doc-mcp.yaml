@@ -6,7 +6,7 @@ metadata:
 spec:
   image: ghcr.io/stackloklabs/toolhive-doc-mcp:v0.0.7
   transport: streamable-http
-  proxyMode: sse
+  proxyMode: streamable-http
   port: 8080
   targetPort: 8080
   permissionProfile:
