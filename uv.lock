@@ -968,7 +968,7 @@ security = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiosqlite", specifier = ">=0.20.0" },
+    { name = "aiosqlite", specifier = ">=0.21.0" },
     { name = "alembic", specifier = ">=1.16.4" },
     { name = "click", specifier = ">=8.2.1" },
     { name = "datamodel-code-generator", extras = ["http"], specifier = ">=0.33.0" },
