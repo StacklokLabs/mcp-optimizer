@@ -1,0 +1,41 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mcp-servers-ingress
+  namespace: toolhive-system
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /fetch(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: mcp-fetch-proxy
+                port:
+                  number: 8080
+          - path: /github(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: mcp-github-proxy
+                port:
+                  number: 8080
+          - path: /toolhive-doc-mcp(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: mcp-toolhive-doc-mcp-proxy
+                port:
+                  number: 8080
+          - path: /mcp-optimizer(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: mcp-mcp-optimizer-proxy
+                port:
+                  number: 8080
+

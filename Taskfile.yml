@@ -120,3 +120,18 @@ tasks:
     desc: Run container offline mode tests
     cmds:
       - ./scripts/test-offline.sh
+
+  k8s-apply-examples:
+    desc: Apply all MCP server examples to Kubernetes cluster
+    cmds:
+      - ./examples/mcp-servers/apply-mcp-servers.sh
+
+  k8s-delete-examples:
+    desc: Delete all MCP server examples from Kubernetes cluster
+    cmds:
+      - ./examples/mcp-servers/delete-mcp-servers.sh
+
+  k8s-status-examples:
+    desc: Check status of all MCP server examples
+    cmds:
+      - ./examples/mcp-servers/status-mcp-servers.sh

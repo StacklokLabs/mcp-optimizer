@@ -162,7 +162,7 @@ class ToolhiveClient:
             logger.info(
                 "Using default version for non-semver ToolHive build",
                 version=version_str,
-                default_version="0.0.0-dev"
+                default_version="0.0.0-dev",
             )
             return Version.parse("0.0.0-dev")
 

@@ -4,6 +4,7 @@ MCP client for connecting to and listing tools from MCP servers.
 
 import asyncio
 from typing import Any, Awaitable, Callable
+from urllib.parse import urlparse, urlunparse
 
 import structlog
 from mcp import ClientSession
@@ -37,6 +38,65 @@ class MCPServerClient:
         """
         self.workload = workload
         self.timeout = timeout
+
+    def _normalize_url(self, url: str, proxy_mode: ToolHiveProxyMode) -> str:
+        """
+        Normalize URL for the given proxy mode.
+
+        For streamable-http:
+        - Fragments must be stripped as they're not supported
+        - Path must be /mcp (not /sse) as streamable-http uses /mcp endpoint
+        For SSE, fragments are preserved as they're used for container identification.
+
+        Args:
+            url: Original URL from ToolHive
+            proxy_mode: The proxy mode being used
+
+        Returns:
+            Normalized URL without fragments and with correct path for streamable-http,
+            original URL for SSE
+        """
+        if proxy_mode == ToolHiveProxyMode.STREAMABLE:
+            # Strip fragments for streamable-http
+            # (fragments not supported by streamable-http client)
+            parsed = urlparse(url)
+
+            # Fix path: streamable-http uses /mcp endpoint, not /sse
+            path = parsed.path
+            if path.endswith("/sse"):
+                path = path.replace("/sse", "/mcp")
+            elif not path.endswith("/mcp"):
+                # Only add /mcp if the path doesn't already contain /mcp
+                # This prevents double-adding /mcp to URLs like /mcp/test-server
+                if "/mcp" not in path:
+                    # If path doesn't end with /mcp or /sse, and doesn't contain /mcp,
+                    # ensure it ends with /mcp
+                    if path.endswith("/"):
+                        path = path + "mcp"
+                    else:
+                        path = path + "/mcp"
+
+            # Reconstruct URL without fragment and with corrected path
+            normalized_tuple = (
+                parsed.scheme,
+                parsed.netloc,
+                path,
+                parsed.params,
+                parsed.query,
+                "",  # Empty fragment
+            )
+            normalized = str(urlunparse(normalized_tuple))
+            if normalized != url:
+                logger.debug(
+                    "Normalized URL for streamable-http",
+                    original_url=url,
+                    normalized_url=normalized,
+                    workload=self.workload.name,
+                )
+            return normalized
+        else:
+            # SSE preserves fragments (used for container identification)
+            return url
 
     def _extract_error_from_exception_group(self, eg: ExceptionGroup) -> str:
         """
@@ -121,24 +181,27 @@ class MCPServerClient:
 
         logger.debug(f"Workload URL: {self.workload.url}")
 
-        # Determine proxy mode and prepare URL
+        # Determine proxy mode and normalize URL
         proxy_mode = self._determine_proxy_mode()
+        normalized_url = self._normalize_url(self.workload.url, proxy_mode)
 
         logger.info(
             f"Using {proxy_mode} client for workload '{self.workload.name}'",
             workload=self.workload.name,
             proxy_mode_field=self.workload.proxy_mode,
-            url=self.workload.url,
+            original_url=self.workload.url,
+            normalized_url=normalized_url,
         )
 
         try:
             if proxy_mode == ToolHiveProxyMode.STREAMABLE:
                 return await asyncio.wait_for(
-                    self._execute_streamable_session(operation), timeout=self.timeout
+                    self._execute_streamable_session(operation, normalized_url),
+                    timeout=self.timeout,
                 )
             elif proxy_mode == ToolHiveProxyMode.SSE:
                 return await asyncio.wait_for(
-                    self._execute_sse_session(operation), timeout=self.timeout
+                    self._execute_sse_session(operation, normalized_url), timeout=self.timeout
                 )
             else:
                 logger.error(f"Unsupported transport type: {proxy_mode}", workload=self.workload)
@@ -170,15 +233,15 @@ class MCPServerClient:
             raise WorkloadConnectionError(f"MCP protocol error: {e}") from e
 
     async def _execute_streamable_session(
-        self, operation: Callable[[ClientSession], Awaitable]
+        self, operation: Callable[[ClientSession], Awaitable], url: str
     ) -> Any:
         """Execute operation with streamable HTTP session."""
         logger.debug(
             f"Establishing streamable HTTP session for workload '{self.workload.name}'",
             workload=self.workload.name,
-            url=self.workload.url,
+            url=url,
         )
-        async with streamablehttp_client(self.workload.url) as (read_stream, write_stream, _):
+        async with streamablehttp_client(url) as (read_stream, write_stream, _):
             async with ClientSession(read_stream, write_stream) as session:
                 logger.info(
                     f"Initializing MCP session for workload '{self.workload.name}'",
@@ -191,14 +254,16 @@ class MCPServerClient:
                 )
                 return await operation(session)
 
-    async def _execute_sse_session(self, operation: Callable[[ClientSession], Awaitable]) -> Any:
+    async def _execute_sse_session(
+        self, operation: Callable[[ClientSession], Awaitable], url: str
+    ) -> Any:
         """Execute operation with SSE session."""
         logger.debug(
             f"Establishing SSE session for workload '{self.workload.name}'",
             workload=self.workload.name,
-            url=self.workload.url,
+            url=url,
         )
-        async with sse_client(self.workload.url) as (read_stream, write_stream):
+        async with sse_client(url) as (read_stream, write_stream):
             async with ClientSession(read_stream, write_stream) as session:
                 logger.info(
                     f"Initializing MCP session for workload '{self.workload.name}'",
