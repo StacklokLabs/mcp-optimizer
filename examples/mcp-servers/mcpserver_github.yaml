@@ -13,6 +13,7 @@ spec:
   permissionProfile:
     name: network
     type: builtin
+  groupRef: optimized
   secrets:
     - name: github-token
       key: token
