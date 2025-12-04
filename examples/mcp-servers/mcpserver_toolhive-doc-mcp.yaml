@@ -13,6 +13,7 @@ spec:
     name: network
     type: builtin
   serviceAccount: mcp-shared-sa
+  groupRef: optimized
   podTemplateSpec:
     spec:
       containers:

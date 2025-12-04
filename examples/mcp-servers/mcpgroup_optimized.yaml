@@ -1,0 +1,8 @@
+apiVersion: toolhive.stacklok.dev/v1alpha1
+kind: MCPGroup
+metadata:
+  name: optimized
+  namespace: toolhive-system
+spec:
+  description: "Optimized MCP servers for tool discovery"
+

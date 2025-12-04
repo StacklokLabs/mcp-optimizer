@@ -83,6 +83,8 @@ spec:
               value: "sqlite+aiosqlite:///data/mcp_optimizer.db"
             - name: DB_URL
               value: "sqlite:///data/mcp_optimizer.db"
+            - name: ALLOWED_GROUPS
+              value: "optimized"
   resources:
     limits:
       cpu: 1000m

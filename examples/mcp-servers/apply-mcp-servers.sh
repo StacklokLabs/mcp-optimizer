@@ -55,6 +55,7 @@ kubectl apply -f "${EXAMPLES_DIR}/shared-serviceaccount.yaml"
 # Apply MCP servers
 echo ""
 echo "Applying MCP servers..."
+kubectl apply -f "${EXAMPLES_DIR}/mcpgroup_optimized.yaml"
 kubectl apply -f "${EXAMPLES_DIR}/mcpserver_fetch.yaml"
 kubectl apply -f "${EXAMPLES_DIR}/mcpserver_github.yaml"
 kubectl apply -f "${EXAMPLES_DIR}/mcpserver_toolhive-doc-mcp.yaml"

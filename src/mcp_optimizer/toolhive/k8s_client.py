@@ -171,7 +171,8 @@ class K8sClient:
 
         # Get labels and group
         labels = metadata.get("labels", {})
-        group = labels.get("toolhive.stacklok.dev/group", "default")
+        # Prefer spec.groupRef over label (MCPServer CRD uses spec.groupRef)
+        group = spec.get("groupRef") or labels.get("toolhive.stacklok.dev/group", "default")
 
         # Package is typically the image name
         package = image
