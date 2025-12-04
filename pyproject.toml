@@ -30,7 +30,7 @@ dev = [
     "pytest>=8.4.2",
     "pytest-asyncio>=1.1.0",
     "ruff>=0.14.7",
-    "ty>=0.0.1a18",
+    "ty>=0.0.1a31",
     "pytest-cov>=7.0.0",
 ]
 security = [
