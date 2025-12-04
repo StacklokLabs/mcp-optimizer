@@ -35,7 +35,7 @@ dev = [
 ]
 security = [
     "safety>=3.2.11",
-    "bandit[toml]>=1.8.0",
+    "bandit[toml]>=1.9.2",
     "pip-audit>=2.10.0",
     "cyclonedx-bom>=7.2.1",
 ]
