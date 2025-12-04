@@ -37,7 +37,7 @@ security = [
     "safety>=3.2.11",
     "bandit[toml]>=1.8.0",
     "pip-audit>=2.7.3",
-    "cyclonedx-bom>=6.0.0",
+    "cyclonedx-bom>=7.2.1",
 ]
 
 [build-system]
