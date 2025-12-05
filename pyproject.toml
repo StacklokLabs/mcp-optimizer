@@ -39,6 +39,11 @@ security = [
     "pip-audit>=2.10.0",
     "cyclonedx-bom>=7.2.1",
 ]
+examples = [
+    "anthropic>=0.75.0",
+    "pydantic-ai>=1.20.0",
+    "matplotlib>=3.10.7",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -68,7 +73,7 @@ lint.ignore = []
 exclude = ["src/mcp_optimizer/toolhive/api_models"]
 
 [tool.ty.src]
-exclude = ["tests"]
+exclude = ["tests", "examples"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
