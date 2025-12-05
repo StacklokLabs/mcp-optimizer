@@ -160,6 +160,13 @@ class MCPServerClient:
                 )
 
         # Fallback to URL-based detection for backwards compatibility
+        if not self.workload.url:
+            logger.warning(
+                "No proxy_mode or URL available, defaulting to SSE",
+                workload=self.workload.name,
+            )
+            return ToolHiveProxyMode.SSE
+
         logger.debug(
             "No proxy_mode available, falling back to URL-based detection",
             workload=self.workload.name,

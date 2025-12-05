@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import structlog
@@ -228,15 +228,16 @@ class RegistryServerOps(BaseServerOps):
     async def delete_server(
         self,
         server_id: str,
-        workload_ops: "WorkloadServerOps | None" = None,
         conn: AsyncConnection | None = None,
+        **kwargs: Any,
     ) -> None:
         """Delete registry server and remove relationships from workload servers.
 
         Args:
             server_id: Registry server UUID
-            workload_ops: Optional WorkloadServerOps instance for handling relationships
             conn: Optional connection
+            **kwargs: Additional arguments including:
+                - workload_ops: Optional WorkloadServerOps instance for handling relationships
 
         Side Effects:
             If workload_ops provided:
@@ -250,6 +251,9 @@ class RegistryServerOps(BaseServerOps):
             If workload_ops is not provided, relationships are not cleaned up.
             This is for cases where the workload table doesn't exist yet or isn't being used.
         """
+        # Extract workload_ops from kwargs if provided
+        workload_ops: WorkloadServerOps | None = kwargs.get("workload_ops")
+
         # If workload_ops provided, clean up relationships first
         if workload_ops is not None:
             # Find all workload servers linked to this registry server
@@ -308,7 +312,9 @@ class RegistryServerOps(BaseServerOps):
         name_changed = "name" in kwargs and kwargs["name"] != existing_server.name
 
         # Call parent's update_server
-        updated_server = await super().update_server(server_id, conn=conn, **kwargs)
+        updated_server = cast(
+            RegistryServer, await super().update_server(server_id, conn=conn, **kwargs)
+        )
 
         # If name changed, update registry_server_name in linked workload servers
         if name_changed:
