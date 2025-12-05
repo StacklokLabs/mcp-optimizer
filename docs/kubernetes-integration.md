@@ -558,7 +558,7 @@ MCP Optimizer converts MCPServer CRDs to internal Workload models with the follo
 | `metadata.namespace` | N/A | Used for scoping |
 | `metadata.creationTimestamp` | `created_at` | Creation timestamp |
 | `metadata.labels` | `labels` | All labels |
-| `metadata.labels["toolhive.stacklok.dev/group"]` | `group` | Server group |
+| `spec.groupRef` (preferred) or `metadata.labels["toolhive.stacklok.dev/group"]` | `group` | Server group (prefers `spec.groupRef`, falls back to label, defaults to "default") |
 | `spec.image` | `package` | Container image |
 | `spec.transport` | `transport_type` | Transport type (stdio, sse, streamable-http) |
 | `spec.port` | `port` | Server port |
@@ -686,7 +686,7 @@ Mismatches between these fields will cause connection failures.
 
 ### Group Filtering
 
-MCP Optimizer supports filtering MCPServers by group labels. This is useful for isolating servers by environment or team:
+MCP Optimizer supports filtering MCPServers by group. This is useful for isolating servers by environment or team:
 
 ```yaml
 # In MCP Optimizer deployment, set environment variable:
@@ -694,7 +694,20 @@ MCP Optimizer supports filtering MCPServers by group labels. This is useful for 
   value: "development,production"
 ```
 
-Servers must have the `toolhive.stacklok.dev/group` label:
+Servers can specify their group using either `spec.groupRef` (preferred) or the `toolhive.stacklok.dev/group` label. The `spec.groupRef` field takes precedence if both are present:
+
+```yaml
+apiVersion: toolhive.stacklok.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: my-server
+spec:
+  # Preferred method: use spec.groupRef
+  groupRef: development
+  # ... other spec fields
+```
+
+Or using labels (legacy method, still supported):
 
 ```yaml
 apiVersion: toolhive.stacklok.dev/v1alpha1
@@ -703,7 +716,11 @@ metadata:
   name: my-server
   labels:
     toolhive.stacklok.dev/group: development
+spec:
+  # ... spec fields
 ```
+
+If neither `spec.groupRef` nor the label is specified, the server will be assigned to the "default" group.
 
 See [Group Filtering documentation](group-filtering.md) for more details.
 
