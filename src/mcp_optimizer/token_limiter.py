@@ -1,7 +1,14 @@
 """Token limiting utilities for tool responses."""
 
 import structlog
-from mcp.types import CallToolResult, EmbeddedResource, ImageContent, TextContent
+from mcp.types import (
+    AudioContent,
+    CallToolResult,
+    EmbeddedResource,
+    ImageContent,
+    ResourceLink,
+    TextContent,
+)
 from pydantic import BaseModel
 
 logger = structlog.get_logger(__name__)
@@ -33,7 +40,9 @@ def estimate_tokens(text: str) -> int:
     return len(text) // 4
 
 
-def count_content_tokens(content: list[TextContent | ImageContent | EmbeddedResource]) -> int:
+def count_content_tokens(  # noqa: C901
+    content: list[TextContent | ImageContent | AudioContent | ResourceLink | EmbeddedResource],
+) -> int:
     """
     Count tokens in CallToolResult content.
 
@@ -54,6 +63,16 @@ def count_content_tokens(content: list[TextContent | ImageContent | EmbeddedReso
             total_tokens += 100  # Base cost for image
             if hasattr(item, "data") and item.data:
                 total_tokens += estimate_tokens(item.data[:1000])  # Sample of data
+        elif isinstance(item, AudioContent):
+            # Audio content uses tokens similar to images
+            total_tokens += 100  # Base cost for audio
+            if hasattr(item, "data") and item.data:
+                total_tokens += estimate_tokens(item.data[:1000])  # Sample of data
+        elif isinstance(item, ResourceLink):
+            # Resource links are typically URIs
+            total_tokens += 50  # Base cost for resource link
+            if hasattr(item, "uri"):
+                total_tokens += estimate_tokens(str(item.uri))
         elif isinstance(item, EmbeddedResource):
             # Resources contain TextResourceContents or BlobResourceContents
             # Estimate based on the resource content
@@ -66,11 +85,14 @@ def count_content_tokens(content: list[TextContent | ImageContent | EmbeddedReso
     return total_tokens
 
 
-def _process_content_items(
-    content: list[TextContent | ImageContent | EmbeddedResource], max_tokens: int
-) -> list[TextContent | ImageContent | EmbeddedResource]:
+def _process_content_items(  # noqa: C901
+    content: list[TextContent | ImageContent | AudioContent | ResourceLink | EmbeddedResource],
+    max_tokens: int,
+) -> list[TextContent | ImageContent | AudioContent | ResourceLink | EmbeddedResource]:
     """Process content items in order, stopping when the next item would exceed the limit."""
-    limited_content: list[TextContent | ImageContent | EmbeddedResource] = []
+    limited_content: list[
+        TextContent | ImageContent | AudioContent | ResourceLink | EmbeddedResource
+    ] = []
     tokens_used = 0
 
     for item in content:
@@ -79,6 +101,12 @@ def _process_content_items(
             item_tokens = estimate_tokens(item.text)
         elif isinstance(item, ImageContent):
             item_tokens = 100  # Base cost for image
+        elif isinstance(item, AudioContent):
+            item_tokens = 100  # Base cost for audio
+        elif isinstance(item, ResourceLink):
+            item_tokens = 50  # Base cost for resource link
+            if hasattr(item, "uri"):
+                item_tokens += estimate_tokens(str(item.uri))
         elif isinstance(item, EmbeddedResource):
             item_tokens = 50  # Base cost
             if hasattr(item.resource, "uri"):
@@ -100,8 +128,12 @@ def _process_content_items(
 
 
 def _create_truncation_message(
-    original_content: list[TextContent | ImageContent | EmbeddedResource],
-    limited_content: list[TextContent | ImageContent | EmbeddedResource],
+    original_content: list[
+        TextContent | ImageContent | AudioContent | ResourceLink | EmbeddedResource
+    ],
+    limited_content: list[
+        TextContent | ImageContent | AudioContent | ResourceLink | EmbeddedResource
+    ],
     original_tokens: int,
     max_tokens: int,
 ) -> str:

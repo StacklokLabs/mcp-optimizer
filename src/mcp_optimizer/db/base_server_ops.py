@@ -216,12 +216,14 @@ class BaseServerOps(ABC):
         self,
         server_id: str,
         conn: AsyncConnection | None = None,
+        **kwargs: Any,
     ) -> None:
         """Delete server (cascades to tools).
 
         Args:
             server_id: Server UUID
             conn: Optional connection
+            **kwargs: Additional subclass-specific parameters
         """
         query = f"DELETE FROM {self.server_table_name} WHERE id = :id"
         await self.db.execute_non_query(query, {"id": server_id}, conn=conn)

@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import structlog
@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from mcp_optimizer.db.config import DatabaseConfig
 from mcp_optimizer.db.exceptions import DbNotFoundError
 from mcp_optimizer.db.models import (
-    BaseToolWithMetadata,
     McpStatus,
     RegistryTool,
     RegistryToolUpdateDetails,
@@ -637,7 +636,10 @@ class BaseToolOps(ABC):
         self,
         semantic_task: Awaitable,
         bm25_task: Awaitable,
-    ) -> tuple[list[BaseToolWithMetadata], list[BaseToolWithMetadata]]:
+    ) -> tuple[
+        list[RegistryToolWithMetadata] | list[WorkloadToolWithMetadata],
+        list[RegistryToolWithMetadata] | list[WorkloadToolWithMetadata],
+    ]:
         """Execute hybrid search tasks concurrently.
 
         Args:
@@ -1003,7 +1005,10 @@ class BaseToolOps(ABC):
             tool_distances=tool_distances,
         )
 
-        return tools_with_metadata
+        # Cast to the expected return type
+        return cast(
+            list[RegistryToolWithMetadata] | list[WorkloadToolWithMetadata], tools_with_metadata
+        )
 
     def _combine_search_results(
         self,

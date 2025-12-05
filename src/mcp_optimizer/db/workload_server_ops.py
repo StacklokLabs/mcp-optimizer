@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import structlog
@@ -180,9 +180,12 @@ class WorkloadServerOps(BaseServerOps):
         Returns:
             WorkloadWithRegistry if found (with registry if linked), None otherwise
         """
-        workload = await self.get_server_by_id(server_id, conn=conn)
-        if not workload:
+        server = await self.get_server_by_id(server_id, conn=conn)
+        if not server:
             return None
+
+        # Cast to WorkloadServer since this is WorkloadServerOps
+        workload = cast(WorkloadServer, server)
 
         # Get registry if linked
         registry = None

@@ -986,7 +986,7 @@ class IngestionService:
             server_name_context = (
                 workload_server.registry_server_name
                 if workload_server.registry_server_name
-                else workload.name
+                else (workload.name or "unknown")
             )
 
             # Get tools from MCP server
@@ -1114,7 +1114,9 @@ class IngestionService:
         try:
             # Generate server embedding from metadata
             server_text = self._create_server_text_to_embed(
-                server_metadata.name, server_metadata.description, server_metadata.tags
+                server_metadata.name or "unknown",
+                server_metadata.description,
+                server_metadata.tags,
             )
             embedding = self.embedding_manager.generate_embedding([server_text])
             server_embedding = embedding[0]
@@ -1141,7 +1143,10 @@ class IngestionService:
 
                 # Check if tools need updating
                 tools_count, tools_were_updated = await self._sync_registry_tools(
-                    existing_server.id, server_metadata.name, server_metadata.tools or [], conn
+                    existing_server.id,
+                    server_metadata.name or "unknown",
+                    server_metadata.tools or [],
+                    conn,
                 )
 
                 # Update server if metadata changed
@@ -1183,7 +1188,7 @@ class IngestionService:
                 url = package if remote else None
 
                 new_server = await self.registry_server_ops.create_server(
-                    name=server_metadata.name,
+                    name=server_metadata.name or "unknown",
                     url=url,
                     package=package if not remote else None,
                     remote=remote,
@@ -1196,7 +1201,10 @@ class IngestionService:
 
                 # Ingest tool names if available
                 tools_count, _ = await self._sync_registry_tools(
-                    new_server.id, server_metadata.name, server_metadata.tools or [], conn
+                    new_server.id,
+                    server_metadata.name or "unknown",
+                    server_metadata.tools or [],
+                    conn,
                 )
 
                 logger.debug(
@@ -1251,6 +1259,14 @@ class IngestionService:
         # Process remote servers
         if registry.remote_servers and isinstance(registry.remote_servers, dict):
             for _, server_metadata in registry.remote_servers.items():
+                # Skip remote servers without a URL (invalid)
+                if not server_metadata.url:
+                    logger.warning(
+                        "Skipping remote server without URL",
+                        server_name=server_metadata.name,
+                    )
+                    continue
+
                 # Use URL as identifier for remote servers (stable across registry updates)
                 # This allows remote workloads to match registry entries even if names differ
                 registry_server_identifiers.add((server_metadata.url, True))  # (url, is_remote)
@@ -1563,7 +1579,7 @@ class IngestionService:
             # This is critical for URL-based matching instead of package-based matching
             for workload in all_workloads:
                 is_remote = workload.remote or False
-                if is_remote:
+                if is_remote and workload.name:
                     try:
                         detailed_workload = await toolhive_client.get_workload_details(
                             workload.name

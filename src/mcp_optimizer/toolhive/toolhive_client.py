@@ -494,6 +494,11 @@ class ToolhiveClient:
         """
         workload_list = await self.list_workloads(all_workloads=False)
 
+        # Handle case where workloads might be None
+        if not workload_list.workloads:
+            logger.info("No workloads found")
+            return []
+
         running_mcp_workloads = [
             workload
             for workload in workload_list.workloads
