@@ -215,7 +215,12 @@ class ToolhiveClient:
 
             # Check if we're in backoff period after a failed discovery attempt
             # If so, wait for the backoff period to expire before attempting again
-            if self._discovery_failed and self._last_discovery_attempt_time is not None:
+            # Skip backoff if a specific port was provided (more likely to be correct)
+            if (
+                self._discovery_failed
+                and self._last_discovery_attempt_time is not None
+                and self._initial_port is None
+            ):
                 time_since_last_attempt = time.time() - self._last_discovery_attempt_time
                 if time_since_last_attempt < self._discovery_backoff_seconds:
                     remaining_backoff = self._discovery_backoff_seconds - time_since_last_attempt
