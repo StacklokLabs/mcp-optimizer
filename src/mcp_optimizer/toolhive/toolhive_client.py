@@ -4,6 +4,7 @@ Toolhive API client for discovering and managing MCP server workloads.
 
 import asyncio
 from functools import wraps
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Self, TypeVar
 from urllib.parse import urlparse
 
@@ -23,6 +24,17 @@ from mcp_optimizer.toolhive.api_models.v1 import (
 logger = structlog.get_logger(__name__)
 
 T = TypeVar("T")
+
+
+def _is_running_in_docker() -> bool:
+    """Check if we're running inside a Docker container.
+
+    Returns:
+        True if running in Docker, False otherwise
+    """
+    # Check for Docker-specific paths that exist in the container
+    docker_paths = [Path("/app/migrations"), Path("/app/.venv")]
+    return any(path.exists() for path in docker_paths)
 
 
 class ToolhiveConnectionError(Exception):
@@ -422,12 +434,15 @@ class ToolhiveClient:
             # Replace the localhost/127.0.0.1 host with the toolhive host
             # This is required since in docker/podman container, we cannot use
             # localhost/127.0.0.1
-            for workload in workload_list.workloads:
-                if workload.url:
-                    parsed_url = urlparse(workload.url)
-                    workload_host = parsed_url.hostname
-                    if workload_host in ("localhost", "127.0.0.1"):
-                        workload.url = workload.url.replace(workload_host, self.thv_host)
+            # Only replace when actually running in Docker to avoid breaking
+            # local runs when TOOLHIVE_HOST is set to host.docker.internal
+            if _is_running_in_docker() and self.thv_host not in ("localhost", "127.0.0.1"):
+                for workload in workload_list.workloads:
+                    if workload.url:
+                        parsed_url = urlparse(workload.url)
+                        workload_host = parsed_url.hostname
+                        if workload_host in ("localhost", "127.0.0.1"):
+                            workload.url = workload.url.replace(workload_host, self.thv_host)
 
             logger.info(
                 "Successfully fetched workloads",
@@ -468,11 +483,14 @@ class ToolhiveClient:
             workload = Workload.model_validate(data)
 
             # Replace localhost/127.0.0.1 with the toolhive host (same as list_workloads)
-            if workload.url:
-                parsed_url = urlparse(workload.url)
-                workload_host = parsed_url.hostname
-                if workload_host in ("localhost", "127.0.0.1"):
-                    workload.url = workload.url.replace(workload_host, self.thv_host)
+            # Only replace when actually running in Docker to avoid breaking
+            # local runs when TOOLHIVE_HOST is set to host.docker.internal
+            if _is_running_in_docker() and self.thv_host not in ("localhost", "127.0.0.1"):
+                if workload.url:
+                    parsed_url = urlparse(workload.url)
+                    workload_host = parsed_url.hostname
+                    if workload_host in ("localhost", "127.0.0.1"):
+                        workload.url = workload.url.replace(workload_host, self.thv_host)
 
             logger.info(
                 "Successfully fetched workload details",
