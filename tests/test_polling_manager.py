@@ -92,7 +92,8 @@ class TestPollingManager:
         assert polling_manager.workload_polling_interval == 0.1
         assert polling_manager.registry_polling_interval == 0.2
         assert polling_manager.toolhive_client.thv_host == "localhost"
-        assert polling_manager.toolhive_client.thv_port == 8080
+        # Port discovery is now lazy, so thv_port will be None until connection is established
+        assert polling_manager.toolhive_client.thv_port is None
         assert polling_manager._workload_polling_task is None
         assert polling_manager._registry_polling_task is None
         assert not polling_manager._shutdown_requested
