@@ -120,19 +120,15 @@ def _is_call_tool_result_valid(tool_call_result: CallToolResult) -> bool:
         return False
 
     try:
-        call_tool = CallToolResult.model_validate_json(result_text)
-    except Exception:
-        logger.error(f"Failed to decode call_tool result text: {result_text}", exc_info=True)
-        return False
-
-    try:
-        result_time_call = call_tool.content[0].text
-        time_call_tool = json.loads(result_time_call)
+        # The result_text is the actual tool response JSON, not a CallToolResult
+        time_call_tool = json.loads(result_text)
         if "timezone" not in time_call_tool or "datetime" not in time_call_tool:
-            logger.error(f"'timezone' or 'datetime' key not found in call_tool result: {call_tool}")
+            logger.error(
+                f"'timezone' or 'datetime' key not found in call_tool result: {time_call_tool}"
+            )
             return False
     except Exception:
-        logger.error(f"Failed to parse call_tool content: {call_tool}", exc_info=True)
+        logger.error(f"Failed to parse call_tool content: {result_text}", exc_info=True)
         return False
 
     return True
