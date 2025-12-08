@@ -59,26 +59,19 @@ class TestPortRediscovery:
         """Test successful port rediscovery to a new port."""
         discover_call_count = 0
 
-        def mock_discover_port(self, port):
-            nonlocal discover_call_count
-            discover_call_count += 1
-            # First call: init - set to 50001
-            if discover_call_count == 1:
-                self.thv_port = 50001
-                self.base_url = f"http://{self.thv_host}:{self.thv_port}"
-
         async def mock_discover_port_async(self, port):
             nonlocal discover_call_count
             discover_call_count += 1
-            # Subsequent calls: rediscovery - set to 50002
-            self.thv_port = 50002
-            self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+            # First call: initial discovery - set to 50001
+            if discover_call_count == 1:
+                self.thv_port = 50001
+                self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+            else:
+                # Subsequent calls: rediscovery - set to 50002
+                self.thv_port = 50002
+                self.base_url = f"http://{self.thv_host}:{self.thv_port}"
 
         # Mock the discovery to avoid asyncio.run in async context
-        monkeypatch.setattr(
-            "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
-            mock_discover_port,
-        )
         monkeypatch.setattr(
             "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port_async",
             mock_discover_port_async,
@@ -95,6 +88,8 @@ class TestPortRediscovery:
             max_backoff=0.5,
         )
 
+        # Port discovery is lazy, so we need to await ensure_connected first
+        await client.ensure_connected()
         # Initially on port 50001
         assert client.thv_port == 50001
         old_port = client.thv_port
@@ -382,15 +377,15 @@ class TestRetryLogic:
     async def test_backoff_reset_after_successful_rediscovery(self, monkeypatch):
         """Test that backoff resets after successful port rediscovery."""
 
-        def mock_discover_port(self, port):
-            # Skip the async discovery during init
+        async def mock_discover_port_async(self, port):
+            # Initial discovery sets port to 50001
             self.thv_port = 50001
             self.base_url = f"http://{self.thv_host}:{self.thv_port}"
 
         # Mock the discovery to avoid asyncio.run in async context
         monkeypatch.setattr(
-            "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port",
-            mock_discover_port,
+            "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._discover_port_async",
+            mock_discover_port_async,
         )
 
         client = ToolhiveClient(
@@ -403,6 +398,9 @@ class TestRetryLogic:
             initial_backoff=0.1,
             max_backoff=0.5,
         )
+
+        # Port discovery is lazy, so we need to await ensure_connected first
+        await client.ensure_connected()
 
         call_count = 0
         rediscover_call_count = 0
