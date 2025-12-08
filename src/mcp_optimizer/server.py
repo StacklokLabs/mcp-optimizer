@@ -162,6 +162,7 @@ def initialize_server_components(config: MCPOptimizerConfig) -> None:
         initial_backoff=config.toolhive_initial_backoff,
         max_backoff=config.toolhive_max_backoff,
         skip_port_discovery=(config.runtime_mode == "k8s"),
+        skip_backoff=config.toolhive_skip_backoff,
     )
     mcp_installer = McpServerInstaller(
         toolhive_client=toolhive_client, workload_server_ops=workload_server_ops

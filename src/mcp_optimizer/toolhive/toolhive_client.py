@@ -64,6 +64,7 @@ class ToolhiveClient:
         initial_backoff: float,
         max_backoff: float,
         skip_port_discovery: bool = False,
+        skip_backoff: bool = False,
     ):
         """
         Initialize the Toolhive client.
@@ -79,6 +80,8 @@ class ToolhiveClient:
             max_backoff: Maximum backoff delay in seconds
             skip_port_discovery: Skip port scanning
                 (useful when ToolHive is not needed, e.g., K8s mode)
+            skip_backoff: Skip backoff period between discovery retries
+                (useful for tests/CI where faster retries are needed)
         """
         self.thv_host = host
         self.timeout = timeout
@@ -88,6 +91,7 @@ class ToolhiveClient:
         self.scan_port_start = scan_port_start
         self.scan_port_end = scan_port_end
         self.skip_port_discovery = skip_port_discovery
+        self.skip_backoff = skip_backoff
         self._client: httpx.AsyncClient | None = None
         self.thv_port = None
         self._initial_port = port  # Store the initial port for rediscovery
@@ -215,11 +219,11 @@ class ToolhiveClient:
 
             # Check if we're in backoff period after a failed discovery attempt
             # If so, wait for the backoff period to expire before attempting again
-            # Skip backoff if a specific port was provided (more likely to be correct)
+            # Skip backoff if skip_backoff flag is set (useful for tests/CI)
             if (
-                self._discovery_failed
+                not self.skip_backoff
+                and self._discovery_failed
                 and self._last_discovery_attempt_time is not None
-                and self._initial_port is None
             ):
                 time_since_last_attempt = time.time() - self._last_discovery_attempt_time
                 if time_since_last_attempt < self._discovery_backoff_seconds:

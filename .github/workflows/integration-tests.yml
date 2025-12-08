@@ -62,6 +62,7 @@ jobs:
           --env TOOLHIVE_PORT=9090
           --env WORKLOAD_POLLING_INTERVAL=2
           --env ALLOWED_GROUPS=default
+          --env TOOLHIVE_SKIP_BACKOFF=1
 
       - name: Check server status
         run: |
