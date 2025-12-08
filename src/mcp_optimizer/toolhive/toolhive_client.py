@@ -188,12 +188,12 @@ class ToolhiveClient:
         """
         Ensure the client has discovered the ToolHive port.
         This method performs lazy port discovery if not already done.
-        Will retry discovery with a backoff period to avoid rapid retries.
+        Will wait for backoff period if a previous discovery attempt failed,
+        then retry discovery to avoid rapid retries.
 
         Raises:
-            ToolhiveScanError: If port discovery fails
-            ConnectionError: If ToolHive is not found after scanning or
-                if backoff period hasn't elapsed
+            ToolhiveScanError: If port discovery fails after waiting for backoff
+            ConnectionError: If ToolHive is not found after scanning
         """
         # Skip if port discovery is disabled
         if self.skip_port_discovery:
@@ -214,17 +214,18 @@ class ToolhiveClient:
                 return
 
             # Check if we're in backoff period after a failed discovery attempt
+            # If so, wait for the backoff period to expire before attempting again
             if self._discovery_failed and self._last_discovery_attempt_time is not None:
                 time_since_last_attempt = time.time() - self._last_discovery_attempt_time
                 if time_since_last_attempt < self._discovery_backoff_seconds:
                     remaining_backoff = self._discovery_backoff_seconds - time_since_last_attempt
-                    raise ConnectionError(
-                        f"ToolHive connection unavailable. "
-                        f"Retrying in {remaining_backoff:.0f} seconds "
-                        f"(backoff period: {self._discovery_backoff_seconds}s). "
-                        f"Host: {self.thv_host}, "
-                        f"Port range: {self.scan_port_start}-{self.scan_port_end}"
+                    logger.debug(
+                        "Waiting for backoff period before retrying discovery",
+                        remaining_seconds=remaining_backoff,
+                        backoff_period=self._discovery_backoff_seconds,
+                        host=self.thv_host,
                     )
+                    await asyncio.sleep(remaining_backoff)
 
             # Attempt discovery
             self._discovery_attempted = True
