@@ -378,7 +378,8 @@ async def list_tools() -> ListToolsResult:
                         - Usage examples where applicable
     """
     if embedding_manager is None or _config is None or workload_tool_ops is None:
-        raise RuntimeError("Server components not initialized")
+        logger.error("Server components not initialized - returning empty tool list")
+        return ListToolsResult(tools=[])
 
     try:
         async with _performance_timer("list all tools"):
@@ -398,8 +399,14 @@ async def list_tools() -> ListToolsResult:
 
         return ListToolsResult(tools=all_tools)
     except Exception as e:
-        logger.exception(f"Unexpected error during tool listing: {e}")
-        raise ToolDiscoveryError(f"Tool listing failed: {e}") from e
+        # Log the error but return empty list instead of raising
+        # This ensures the client always gets a valid response
+        logger.exception(
+            "Unexpected error during tool listing - returning empty list",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        return ListToolsResult(tools=[])
 
 
 async def search_registry(tool_description: str, tool_keywords: str) -> ListToolsResult:

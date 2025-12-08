@@ -357,6 +357,8 @@ class PollingManager:
         logger.info(
             "=== WORKLOAD POLLING LOOP STARTED ===", interval=self.workload_polling_interval
         )
+        # Wait before first polling attempt to allow server to fully start
+        await asyncio.sleep(self.workload_polling_interval)
         cycle_count = 0
         while not self._shutdown_requested:
             cycle_count += 1
@@ -405,6 +407,8 @@ class PollingManager:
         logger.info(
             "=== REGISTRY POLLING LOOP STARTED ===", interval=self.registry_polling_interval
         )
+        # Wait before first polling attempt to allow server to fully start
+        await asyncio.sleep(self.registry_polling_interval)
         cycle_count = 0
         while not self._shutdown_requested:
             cycle_count += 1
@@ -444,17 +448,24 @@ class PollingManager:
             logger.debug("Workload polling cycle completed successfully")
         except Exception as e:
             # Import here to avoid circular dependency
-            from mcp_optimizer.toolhive.toolhive_client import ToolhiveConnectionError
+            from mcp_optimizer.toolhive.toolhive_client import (
+                ToolhiveConnectionError,
+                ToolhiveScanError,
+            )
 
-            if isinstance(e, ToolhiveConnectionError):
-                logger.critical(
-                    "ToolHive connection lost during polling. "
-                    "All retry attempts exhausted. Stopping polling and re-raising.",
+            # Handle connection errors gracefully - log and continue polling
+            # This allows the system to reconnect when ToolHive becomes available
+            if isinstance(e, (ToolhiveConnectionError, ToolhiveScanError, ConnectionError)):
+                logger.warning(
+                    "ToolHive connection unavailable during polling. "
+                    "Will retry on next polling cycle.",
                     error=str(e),
+                    error_type=type(e).__name__,
                 )
-                # Re-raise to stop polling loop - let caller handle shutdown
-                raise
+                # Don't re-raise - continue polling so we can reconnect later
+                return
             logger.exception("Error during workload synchronization", error=str(e))
+            # Re-raise unexpected errors
             raise
 
     async def _poll_registry(self) -> None:
@@ -467,17 +478,24 @@ class PollingManager:
             logger.debug("Registry polling cycle completed successfully")
         except Exception as e:
             # Import here to avoid circular dependency
-            from mcp_optimizer.toolhive.toolhive_client import ToolhiveConnectionError
+            from mcp_optimizer.toolhive.toolhive_client import (
+                ToolhiveConnectionError,
+                ToolhiveScanError,
+            )
 
-            if isinstance(e, ToolhiveConnectionError):
-                logger.critical(
-                    "ToolHive connection lost during polling. "
-                    "All retry attempts exhausted. Stopping polling and re-raising.",
+            # Handle connection errors gracefully - log and continue polling
+            # This allows the system to reconnect when ToolHive becomes available
+            if isinstance(e, (ToolhiveConnectionError, ToolhiveScanError, ConnectionError)):
+                logger.warning(
+                    "ToolHive connection unavailable during polling. "
+                    "Will retry on next polling cycle.",
                     error=str(e),
+                    error_type=type(e).__name__,
                 )
-                # Re-raise to stop polling loop - let caller handle shutdown
-                raise
+                # Don't re-raise - continue polling so we can reconnect later
+                return
             logger.exception("Error during registry synchronization", error=str(e))
+            # Re-raise unexpected errors
             raise
 
     def is_polling(self) -> bool:

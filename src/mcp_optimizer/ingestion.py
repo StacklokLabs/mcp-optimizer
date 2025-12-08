@@ -1450,9 +1450,24 @@ class IngestionService:
                 )
                 return all_workloads
         except Exception as e:
+            # Import here to avoid circular dependency
+            from mcp_optimizer.toolhive.toolhive_client import (
+                ToolhiveConnectionError,
+                ToolhiveScanError,
+            )
+
+            # If ToolHive is unavailable, return empty list instead of raising error
+            if isinstance(e, (ToolhiveConnectionError, ToolhiveScanError, ConnectionError)):
+                logger.info(
+                    "ToolHive server unavailable - returning empty workload list. "
+                    "Will retry on next polling cycle.",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+                return []
+            # Re-raise unexpected errors
             logger.warning(
-                "Could not connect to ToolHive workloads API - "
-                "this is expected if ToolHive is not running",
+                "Unexpected error fetching workloads from ToolHive",
                 error=str(e),
                 error_type=type(e).__name__,
             )
@@ -1515,7 +1530,7 @@ class IngestionService:
         Args:
             toolhive_client: Connected ToolhiveClient instance
         Returns:
-            Registry or None if fetch failed
+            Registry or None if ToolHive is unavailable
         """
         try:
             async with toolhive_client as client:
@@ -1523,9 +1538,26 @@ class IngestionService:
                 logger.info("Successfully fetched registry for server embeddings")
                 return registry
         except Exception as e:
+            # Import here to avoid circular dependency
+            from mcp_optimizer.toolhive.toolhive_client import (
+                ToolhiveConnectionError,
+                ToolhiveScanError,
+            )
+
+            # If ToolHive is unavailable, return None instead of raising error
+            if isinstance(e, (ToolhiveConnectionError, ToolhiveScanError, ConnectionError)):
+                logger.info(
+                    "ToolHive server unavailable - cannot fetch registry. "
+                    "Will retry on next polling cycle.",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+                return None
+            # For other errors, log warning but still return None
             logger.warning(
                 "Failed to fetch registry, will use mean pooling for server embeddings",
                 error=str(e),
+                error_type=type(e).__name__,
             )
             return None
 
@@ -1571,38 +1603,33 @@ class IngestionService:
         total_tools = 0
         deleted_server_names: set[str] = set()
 
-        try:
-            # Fetch workloads outside transaction (read-only operations)
-            all_workloads = await self._get_all_workloads(toolhive_client)
+        # Fetch workloads outside transaction (read-only operations)
+        # Returns empty list if ToolHive is unavailable
+        all_workloads = await self._get_all_workloads(toolhive_client)
 
-            # Fetch workload details for remote workloads to get accurate URLs
-            # This is critical for URL-based matching instead of package-based matching
-            for workload in all_workloads:
-                is_remote = workload.remote or False
-                if is_remote and workload.name:
-                    try:
-                        detailed_workload = await toolhive_client.get_workload_details(
-                            workload.name
-                        )
-                        # Store the URL in the package field for remote workloads
-                        # This makes the URL the stable identifier for remote workloads
-                        workload.package = detailed_workload.url
-                        logger.debug(
-                            "Fetched URL for remote workload",
-                            name=workload.name,
-                            url=workload.package,
-                        )
-                    except Exception as e:
-                        logger.warning(
-                            "Failed to fetch workload details, will skip this workload",
-                            name=workload.name,
-                            error=str(e),
-                        )
-                        # Set package to None to trigger skip in later processing
-                        workload.package = None
-        except WorkloadRetrievalError as e:
-            logger.error("Aborting workload ingestion due to error fetching workloads", error=e)
-            raise
+        # Fetch workload details for remote workloads to get accurate URLs
+        # This is critical for URL-based matching instead of package-based matching
+        for workload in all_workloads:
+            is_remote = workload.remote or False
+            if is_remote and workload.name:
+                try:
+                    detailed_workload = await toolhive_client.get_workload_details(workload.name)
+                    # Store the URL in the package field for remote workloads
+                    # This makes the URL the stable identifier for remote workloads
+                    workload.package = detailed_workload.url
+                    logger.debug(
+                        "Fetched URL for remote workload",
+                        name=workload.name,
+                        url=workload.package,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to fetch workload details, will skip this workload",
+                        name=workload.name,
+                        error=str(e),
+                    )
+                    # Set package to None to trigger skip in later processing
+                    workload.package = None
 
         # Wrap all database operations in a single transaction for atomicity.
         # This ensures all workload updates, tool syncs, and vector table updates
@@ -1746,11 +1773,16 @@ class IngestionService:
         )
 
         # Fetch registry outside transaction (read-only operation)
-        try:
-            registry = await self._get_registry(toolhive_client)
-        except WorkloadRetrievalError as e:
-            logger.error("Aborting registry ingestion due to error fetching registry", error=e)
-            raise
+        # Returns None if ToolHive is unavailable
+        registry = await self._get_registry(toolhive_client)
+
+        # If registry is None (ToolHive unavailable), skip ingestion
+        if registry is None:
+            logger.info(
+                "Skipping registry ingestion - ToolHive unavailable. "
+                "Will retry on next polling cycle."
+            )
+            return
 
         # Wrap all database operations in a single transaction for atomicity.
         # This ensures all registry server ingestions and vector table updates

@@ -3,6 +3,7 @@ Toolhive API client for discovering and managing MCP server workloads.
 """
 
 import asyncio
+import time
 from functools import wraps
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Self, TypeVar
@@ -91,6 +92,13 @@ class ToolhiveClient:
         self.thv_port = None
         self._initial_port = port  # Store the initial port for rediscovery
         self._rediscovery_lock: asyncio.Lock | None = None  # Lazy initialization for async context
+        self._discovery_lock: asyncio.Lock | None = None  # Lazy initialization for async context
+        self._discovery_attempted = False  # Track if we've attempted discovery
+        self._discovery_failed = False  # Track if discovery failed
+        # Timestamp of last discovery attempt
+        self._last_discovery_attempt_time: float | None = None
+        # 3 minutes backoff between discovery attempts
+        self._discovery_backoff_seconds = 180
 
         # Skip port discovery if requested (e.g., when running in K8s mode)
         if skip_port_discovery:
@@ -100,9 +108,17 @@ class ToolhiveClient:
             )
             # Set a dummy base_url that won't be used
             self.base_url = f"http://{self.thv_host}:0"
+            self._discovery_attempted = True
             return
 
-        self._discover_port(port)
+        # Don't discover port at initialization - defer until needed
+        # Set a placeholder base_url that will be updated when connection is established
+        self.base_url = f"http://{self.thv_host}:0"
+        logger.info(
+            "ToolhiveClient initialized (port discovery deferred)",
+            host=host,
+            port=port,
+        )
 
     async def _discover_port_async(self, port: int | None = None) -> None:
         """
@@ -138,11 +154,11 @@ class ToolhiveClient:
                 raise
 
         self.base_url = f"http://{self.thv_host}:{self.thv_port}"
-        logger.info("ToolhiveClient initialized", host=self.thv_host, port=self.thv_port)
+        logger.info("ToolhiveClient port discovered", host=self.thv_host, port=self.thv_port)
 
     def _discover_port(self, port: int | None = None) -> None:
         """
-        Discover the ToolHive port.
+        Discover the ToolHive port synchronously.
         Detects if there's a running event loop and executes appropriately.
 
         Args:
@@ -159,6 +175,80 @@ class ToolhiveClient:
         except RuntimeError:
             # No running loop - safe to use asyncio.run()
             asyncio.run(self._discover_port_async(port))
+
+    def is_connected(self) -> bool:
+        """Check if the client has discovered a port and is ready to connect.
+
+        Returns:
+            True if port has been discovered, False otherwise
+        """
+        return self.thv_port is not None and self.base_url != f"http://{self.thv_host}:0"
+
+    async def ensure_connected(self) -> None:
+        """
+        Ensure the client has discovered the ToolHive port.
+        This method performs lazy port discovery if not already done.
+        Will retry discovery with a backoff period to avoid rapid retries.
+
+        Raises:
+            ToolhiveScanError: If port discovery fails
+            ConnectionError: If ToolHive is not found after scanning or
+                if backoff period hasn't elapsed
+        """
+        # Skip if port discovery is disabled
+        if self.skip_port_discovery:
+            return
+
+        # If already connected, return early
+        if self.is_connected():
+            return
+
+        # Lazy initialize the lock
+        if self._discovery_lock is None:
+            self._discovery_lock = asyncio.Lock()
+
+        # Use lock to prevent concurrent discovery attempts
+        async with self._discovery_lock:
+            # Check again after acquiring lock (another coroutine might have discovered it)
+            if self.is_connected():
+                return
+
+            # Check if we're in backoff period after a failed discovery attempt
+            if self._discovery_failed and self._last_discovery_attempt_time is not None:
+                time_since_last_attempt = time.time() - self._last_discovery_attempt_time
+                if time_since_last_attempt < self._discovery_backoff_seconds:
+                    remaining_backoff = self._discovery_backoff_seconds - time_since_last_attempt
+                    raise ConnectionError(
+                        f"ToolHive connection unavailable. "
+                        f"Retrying in {remaining_backoff:.0f} seconds "
+                        f"(backoff period: {self._discovery_backoff_seconds}s). "
+                        f"Host: {self.thv_host}, "
+                        f"Port range: {self.scan_port_start}-{self.scan_port_end}"
+                    )
+
+            # Attempt discovery
+            self._discovery_attempted = True
+            self._last_discovery_attempt_time = time.time()
+            try:
+                await self._discover_port_async(self._initial_port)
+                self._discovery_failed = False
+                self._last_discovery_attempt_time = None  # Reset on success
+                logger.info(
+                    "Successfully connected to ToolHive",
+                    host=self.thv_host,
+                    port=self.thv_port,
+                )
+            except Exception as e:
+                self._discovery_failed = True
+                logger.warning(
+                    "Failed to discover ToolHive port",
+                    host=self.thv_host,
+                    port=self._initial_port,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    next_retry_in_seconds=self._discovery_backoff_seconds,
+                )
+                raise
 
     def _parse_toolhive_version(self, version_str: str) -> Version:
         """Parse ToolHive version string into a Version object.
@@ -223,13 +313,33 @@ class ToolhiveClient:
             "Scanning for ToolHive", host=host, port_range=f"{scan_port_start}-{scan_port_end}"
         )
 
-        task_outcomes = await asyncio.gather(
-            *[
-                self._is_toolhive_available(host, port)
-                for port in range(scan_port_start, scan_port_end + 1)
-            ],
-            return_exceptions=True,
-        )
+        # Calculate total timeout: timeout per port * number of ports, with a max of 30 seconds
+        num_ports = scan_port_end - scan_port_start + 1
+        total_timeout = min(self.timeout * num_ports, 30.0)
+
+        try:
+            task_outcomes = await asyncio.wait_for(
+                asyncio.gather(
+                    *[
+                        self._is_toolhive_available(host, port)
+                        for port in range(scan_port_start, scan_port_end + 1)
+                    ],
+                    return_exceptions=True,
+                ),
+                timeout=total_timeout,
+            )
+        except asyncio.TimeoutError as e:
+            logger.warning(
+                "Port scan timed out",
+                host=host,
+                port_range=f"{scan_port_start}-{scan_port_end}",
+                timeout=total_timeout,
+            )
+            raise ConnectionError(
+                f"ToolHive port scan timed out after {total_timeout}s "
+                f"on {host} in port range {scan_port_start}-{scan_port_end}"
+            ) from e
+
         thv_version_port = [
             version_port
             for version_port in task_outcomes
@@ -278,21 +388,29 @@ class ToolhiveClient:
                         old_port=old_port,
                         new_port=self.thv_port,
                     )
+                    # Reset failure flag and backoff timer on success
+                    self._discovery_failed = False
+                    self._last_discovery_attempt_time = None
                     return True
                 elif self.thv_port:
                     logger.info(
                         "ToolHive still available on same port",
                         port=self.thv_port,
                     )
+                    # Reset failure flag and backoff timer on success
+                    self._discovery_failed = False
+                    self._last_discovery_attempt_time = None
                     return True
                 else:
                     logger.error("Failed to rediscover ToolHive port")
+                    self._discovery_failed = True
                     return False
             except Exception as e:
                 logger.error("Error during port rediscovery", error=str(e))
                 # Restore old port
                 self.thv_port = old_port
                 self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+                self._discovery_failed = True
                 return False
 
     def _with_retry(self, func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
@@ -417,6 +535,7 @@ class ToolhiveClient:
         """
 
         async def _list_workloads_impl() -> WorkloadListResponse:
+            await self.ensure_connected()
             url = f"{self.base_url}/api/v1beta/workloads"
             params = {"all": "true"} if all_workloads else {}
 
@@ -472,6 +591,7 @@ class ToolhiveClient:
         """
 
         async def _get_workload_details_impl() -> Workload:
+            await self.ensure_connected()
             url = f"{self.base_url}/api/v1beta/workloads/{workload_name}"
 
             logger.debug("Fetching workload details", workload_name=workload_name, url=url)
@@ -545,6 +665,7 @@ class ToolhiveClient:
         """
 
         async def _get_registry_impl() -> Registry:
+            await self.ensure_connected()
             url = f"{self.base_url}/api/v1beta/registry/default"
 
             logger.debug("Fetching registry from Toolhive", url=url)
@@ -589,6 +710,7 @@ class ToolhiveClient:
         """
 
         async def _get_server_from_registry_impl() -> ImageMetadata | RemoteServerMetadata | None:
+            await self.ensure_connected()
             url = f"{self.base_url}/api/v1beta/registry/default/servers/{server_name}"
 
             logger.info("Fetching server from Toolhive registry", url=url)
@@ -627,6 +749,7 @@ class ToolhiveClient:
         """
 
         async def _install_server_impl() -> dict:
+            await self.ensure_connected()
             url = f"{self.base_url}/api/v1beta/workloads"
 
             logger.info("Installing MCP server workload", server_name=create_request.name)
