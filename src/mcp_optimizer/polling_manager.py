@@ -17,7 +17,7 @@ from mcp_optimizer.db.exceptions import DbNotFoundError
 from mcp_optimizer.db.models import McpStatus, RegistryServer
 from mcp_optimizer.db.workload_server_ops import WorkloadServerOps
 from mcp_optimizer.embeddings import EmbeddingManager
-from mcp_optimizer.ingestion import IngestionError, IngestionService
+from mcp_optimizer.ingestion import IngestionError, IngestionService, ToolHiveUnavailable
 from mcp_optimizer.mcp_client import WorkloadConnectionError
 from mcp_optimizer.toolhive.toolhive_client import (
     ToolhiveClient,
@@ -451,12 +451,14 @@ class PollingManager:
             await self.ingestion_service.ingest_workloads(self.toolhive_client)
             logger.debug("Workload polling cycle completed successfully")
         except Exception as e:
-            # Handle connection errors gracefully - log and continue polling
+            # Handle ToolHive unavailability gracefully - log and continue polling
             # This allows the system to reconnect when ToolHive becomes available
-            if isinstance(e, (ToolhiveConnectionError, ToolhiveScanError, ConnectionError)):
+            if isinstance(
+                e,
+                (ToolhiveConnectionError, ToolhiveScanError, ConnectionError, ToolHiveUnavailable),
+            ):
                 logger.warning(
-                    "ToolHive connection unavailable during polling. "
-                    "Will retry on next polling cycle.",
+                    "ToolHive unavailable during polling. Will retry on next polling cycle.",
                     error=str(e),
                     error_type=type(e).__name__,
                 )
@@ -475,12 +477,14 @@ class PollingManager:
             await self.ingestion_service.ingest_registry(self.toolhive_client)
             logger.debug("Registry polling cycle completed successfully")
         except Exception as e:
-            # Handle connection errors gracefully - log and continue polling
+            # Handle ToolHive unavailability gracefully - log and continue polling
             # This allows the system to reconnect when ToolHive becomes available
-            if isinstance(e, (ToolhiveConnectionError, ToolhiveScanError, ConnectionError)):
+            if isinstance(
+                e,
+                (ToolhiveConnectionError, ToolhiveScanError, ConnectionError, ToolHiveUnavailable),
+            ):
                 logger.warning(
-                    "ToolHive connection unavailable during polling. "
-                    "Will retry on next polling cycle.",
+                    "ToolHive unavailable during polling. Will retry on next polling cycle.",
                     error=str(e),
                     error_type=type(e).__name__,
                 )
