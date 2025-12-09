@@ -33,7 +33,11 @@ from mcp_optimizer.toolhive.api_models.core import Workload
 from mcp_optimizer.toolhive.api_models.registry import ImageMetadata, Registry, RemoteServerMetadata
 from mcp_optimizer.toolhive.enums import ToolHiveProxyMode, url_to_toolhive_proxy_mode
 from mcp_optimizer.toolhive.k8s_client import K8sClient
-from mcp_optimizer.toolhive.toolhive_client import ToolhiveClient
+from mcp_optimizer.toolhive.toolhive_client import (
+    ToolhiveClient,
+    ToolhiveConnectionError,
+    ToolhiveScanError,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -1450,12 +1454,6 @@ class IngestionService:
                 )
                 return all_workloads
         except Exception as e:
-            # Import here to avoid circular dependency
-            from mcp_optimizer.toolhive.toolhive_client import (
-                ToolhiveConnectionError,
-                ToolhiveScanError,
-            )
-
             # If ToolHive is unavailable, return empty list instead of raising error
             if isinstance(e, (ToolhiveConnectionError, ToolhiveScanError, ConnectionError)):
                 logger.info(
@@ -1538,12 +1536,6 @@ class IngestionService:
                 logger.info("Successfully fetched registry for server embeddings")
                 return registry
         except Exception as e:
-            # Import here to avoid circular dependency
-            from mcp_optimizer.toolhive.toolhive_client import (
-                ToolhiveConnectionError,
-                ToolhiveScanError,
-            )
-
             # If ToolHive is unavailable, return None instead of raising error
             if isinstance(e, (ToolhiveConnectionError, ToolhiveScanError, ConnectionError)):
                 logger.info(

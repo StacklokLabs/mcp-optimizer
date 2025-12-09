@@ -19,7 +19,11 @@ from mcp_optimizer.db.workload_server_ops import WorkloadServerOps
 from mcp_optimizer.embeddings import EmbeddingManager
 from mcp_optimizer.ingestion import IngestionError, IngestionService
 from mcp_optimizer.mcp_client import WorkloadConnectionError
-from mcp_optimizer.toolhive.toolhive_client import ToolhiveClient
+from mcp_optimizer.toolhive.toolhive_client import (
+    ToolhiveClient,
+    ToolhiveConnectionError,
+    ToolhiveScanError,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -447,12 +451,6 @@ class PollingManager:
             await self.ingestion_service.ingest_workloads(self.toolhive_client)
             logger.debug("Workload polling cycle completed successfully")
         except Exception as e:
-            # Import here to avoid circular dependency
-            from mcp_optimizer.toolhive.toolhive_client import (
-                ToolhiveConnectionError,
-                ToolhiveScanError,
-            )
-
             # Handle connection errors gracefully - log and continue polling
             # This allows the system to reconnect when ToolHive becomes available
             if isinstance(e, (ToolhiveConnectionError, ToolhiveScanError, ConnectionError)):
@@ -477,12 +475,6 @@ class PollingManager:
             await self.ingestion_service.ingest_registry(self.toolhive_client)
             logger.debug("Registry polling cycle completed successfully")
         except Exception as e:
-            # Import here to avoid circular dependency
-            from mcp_optimizer.toolhive.toolhive_client import (
-                ToolhiveConnectionError,
-                ToolhiveScanError,
-            )
-
             # Handle connection errors gracefully - log and continue polling
             # This allows the system to reconnect when ToolHive becomes available
             if isinstance(e, (ToolhiveConnectionError, ToolhiveScanError, ConnectionError)):
