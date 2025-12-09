@@ -127,37 +127,63 @@ class ToolhiveClient:
         """
         Async version: Discover the ToolHive port.
 
+        Sets discovery state tracking (_last_discovery_attempt_time, _discovery_failed)
+        and handles logging for success/failure cases.
+
         Args:
             port: Optional specific port to try first
+
+        Raises:
+            ToolhiveScanError: If port discovery fails
+            ConnectionError: If ToolHive is not found after scanning
         """
-        if port is not None:
-            for attempt in range(3):
-                try:
-                    _, port = await self._is_toolhive_available(self.thv_host, port)
-                    self.thv_port = port
-                    break
-                except ToolhiveScanError:
-                    logger.warning(
-                        "ToolHive not available at specified host/port, retrying...",
-                        host=self.thv_host,
-                        port=port,
-                        attempt=attempt + 1,
-                    )
-                    await asyncio.sleep(1)
-        # If port is not found yet (either not specified or retries failed),
-        # try scanning the port range
-        if self.thv_port is None:
-            try:
+        # Set attempt timestamp
+        self._last_discovery_attempt_time = time.time()
+
+        try:
+            if port is not None:
+                for attempt in range(3):
+                    try:
+                        _, port = await self._is_toolhive_available(self.thv_host, port)
+                        self.thv_port = port
+                        break
+                    except ToolhiveScanError:
+                        logger.warning(
+                            "ToolHive not available at specified host/port, retrying...",
+                            host=self.thv_host,
+                            port=port,
+                            attempt=attempt + 1,
+                        )
+                        await asyncio.sleep(1)
+            # If port is not found yet (either not specified or retries failed),
+            # try scanning the port range
+            if self.thv_port is None:
                 # Scan for ToolHive in the port range
                 self.thv_port = await self._scan_for_toolhive(
                     self.thv_host, self.scan_port_start, self.scan_port_end
                 )
-            except Exception as e:
-                logger.error("Error scanning for ToolHive", error=str(e))
-                raise
 
-        self.base_url = f"http://{self.thv_host}:{self.thv_port}"
-        logger.info("ToolhiveClient port discovered", host=self.thv_host, port=self.thv_port)
+            # Success: set base_url and update state
+            self.base_url = f"http://{self.thv_host}:{self.thv_port}"
+            self._discovery_failed = False
+            self._last_discovery_attempt_time = None  # Reset on success
+            logger.info(
+                "Successfully connected to ToolHive",
+                host=self.thv_host,
+                port=self.thv_port,
+            )
+        except Exception as e:
+            # Failure: update state and log
+            self._discovery_failed = True
+            logger.warning(
+                "Failed to discover ToolHive port",
+                host=self.thv_host,
+                port=port,
+                error=str(e),
+                error_type=type(e).__name__,
+                next_retry_in_seconds=self._discovery_backoff_seconds,
+            )
+            raise
 
     def _discover_port(self, port: int | None = None) -> None:
         """
@@ -237,27 +263,7 @@ class ToolhiveClient:
 
             # Attempt discovery
             self._discovery_attempted = True
-            self._last_discovery_attempt_time = time.time()
-            try:
-                await self._discover_port_async(self._initial_port)
-                self._discovery_failed = False
-                self._last_discovery_attempt_time = None  # Reset on success
-                logger.info(
-                    "Successfully connected to ToolHive",
-                    host=self.thv_host,
-                    port=self.thv_port,
-                )
-            except Exception as e:
-                self._discovery_failed = True
-                logger.warning(
-                    "Failed to discover ToolHive port",
-                    host=self.thv_host,
-                    port=self._initial_port,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                    next_retry_in_seconds=self._discovery_backoff_seconds,
-                )
-                raise
+            await self._discover_port_async(self._initial_port)
 
     def _parse_toolhive_version(self, version_str: str) -> Version:
         """Parse ToolHive version string into a Version object.
@@ -397,29 +403,22 @@ class ToolhiveClient:
                         old_port=old_port,
                         new_port=self.thv_port,
                     )
-                    # Reset failure flag and backoff timer on success
-                    self._discovery_failed = False
-                    self._last_discovery_attempt_time = None
                     return True
                 elif self.thv_port:
                     logger.info(
                         "ToolHive still available on same port",
                         port=self.thv_port,
                     )
-                    # Reset failure flag and backoff timer on success
-                    self._discovery_failed = False
-                    self._last_discovery_attempt_time = None
                     return True
                 else:
                     logger.error("Failed to rediscover ToolHive port")
-                    self._discovery_failed = True
                     return False
             except Exception as e:
                 logger.error("Error during port rediscovery", error=str(e))
                 # Restore old port
                 self.thv_port = old_port
-                self.base_url = f"http://{self.thv_host}:{self.thv_port}"
-                self._discovery_failed = True
+                if self.thv_port:
+                    self.base_url = f"http://{self.thv_host}:{self.thv_port}"
                 return False
 
     def _with_retry(self, func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
