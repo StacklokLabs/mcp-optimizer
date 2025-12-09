@@ -54,6 +54,16 @@ class WorkloadRetrievalError(Exception):
     pass
 
 
+class ToolHiveUnavailable(Exception):
+    """Exception raised when ToolHive is unavailable.
+
+    This exception is raised when ToolHive cannot be reached or is not available,
+    allowing callers to handle this case explicitly rather than checking for None/empty returns.
+    """
+
+    pass
+
+
 class IngestionService:
     """Service for ingesting workloads and tools from Toolhive into the database."""
 
@@ -1454,15 +1464,15 @@ class IngestionService:
                 )
                 return all_workloads
         except Exception as e:
-            # If ToolHive is unavailable, return empty list instead of raising error
+            # If ToolHive is unavailable, raise ToolHiveUnavailable exception
             if isinstance(e, (ToolhiveConnectionError, ToolhiveScanError, ConnectionError)):
                 logger.info(
-                    "ToolHive server unavailable - returning empty workload list. "
+                    "ToolHive server unavailable - cannot fetch workloads. "
                     "Will retry on next polling cycle.",
                     error=str(e),
                     error_type=type(e).__name__,
                 )
-                return []
+                raise ToolHiveUnavailable("ToolHive server unavailable") from e
             # Re-raise unexpected errors
             logger.warning(
                 "Unexpected error fetching workloads from ToolHive",
@@ -1522,13 +1532,15 @@ class IngestionService:
             logger.exception("Failed to connect to Toolhive or fetch workloads")
             raise WorkloadRetrievalError("Failed to fetch workloads from ToolHive") from e
 
-    async def _get_registry(self, toolhive_client: ToolhiveClient) -> Registry | None:
+    async def _get_registry(self, toolhive_client: ToolhiveClient) -> Registry:
         """Fetch registry from ToolHive.
 
         Args:
             toolhive_client: Connected ToolhiveClient instance
         Returns:
-            Registry or None if ToolHive is unavailable
+            Registry from ToolHive
+        Raises:
+            ToolHiveUnavailable: If ToolHive is unavailable
         """
         try:
             async with toolhive_client as client:
@@ -1536,7 +1548,7 @@ class IngestionService:
                 logger.info("Successfully fetched registry for server embeddings")
                 return registry
         except Exception as e:
-            # If ToolHive is unavailable, return None instead of raising error
+            # If ToolHive is unavailable, raise ToolHiveUnavailable exception
             if isinstance(e, (ToolhiveConnectionError, ToolhiveScanError, ConnectionError)):
                 logger.info(
                     "ToolHive server unavailable - cannot fetch registry. "
@@ -1544,14 +1556,14 @@ class IngestionService:
                     error=str(e),
                     error_type=type(e).__name__,
                 )
-                return None
-            # For other errors, log warning but still return None
+                raise ToolHiveUnavailable("ToolHive server unavailable") from e
+            # For other errors, log warning and re-raise
             logger.warning(
-                "Failed to fetch registry, will use mean pooling for server embeddings",
+                "Failed to fetch registry",
                 error=str(e),
                 error_type=type(e).__name__,
             )
-            return None
+            raise
 
     async def _get_all_workloads(self, toolhive_client: ToolhiveClient) -> list[Workload]:
         """Fetch all MCP workloads based on runtime mode.
@@ -1596,8 +1608,14 @@ class IngestionService:
         deleted_server_names: set[str] = set()
 
         # Fetch workloads outside transaction (read-only operations)
-        # Returns empty list if ToolHive is unavailable
-        all_workloads = await self._get_all_workloads(toolhive_client)
+        try:
+            all_workloads = await self._get_all_workloads(toolhive_client)
+        except ToolHiveUnavailable:
+            logger.info(
+                "ToolHive unavailable - skipping workload ingestion. "
+                "Will retry on next polling cycle."
+            )
+            return
 
         # Fetch workload details for remote workloads to get accurate URLs
         # This is critical for URL-based matching instead of package-based matching
@@ -1765,13 +1783,11 @@ class IngestionService:
         )
 
         # Fetch registry outside transaction (read-only operation)
-        # Returns None if ToolHive is unavailable
-        registry = await self._get_registry(toolhive_client)
-
-        # If registry is None (ToolHive unavailable), skip ingestion
-        if registry is None:
+        try:
+            registry = await self._get_registry(toolhive_client)
+        except ToolHiveUnavailable:
             logger.info(
-                "Skipping registry ingestion - ToolHive unavailable. "
+                "ToolHive unavailable - skipping registry ingestion. "
                 "Will retry on next polling cycle."
             )
             return
