@@ -3,6 +3,7 @@ Toolhive API client for discovering and managing MCP server workloads.
 """
 
 import asyncio
+import os
 import time
 from functools import wraps
 from pathlib import Path
@@ -30,10 +31,17 @@ T = TypeVar("T")
 def _is_running_in_docker() -> bool:
     """Check if we're running inside a Docker container.
 
+    First checks the RUNNING_IN_DOCKER environment variable (set in Dockerfile).
+    Falls back to checking for Docker-specific paths for backward compatibility.
+
     Returns:
         True if running in Docker, False otherwise
     """
-    # Check for Docker-specific paths that exist in the container
+    # Check environment variable first (more robust, set in Dockerfile)
+    if os.getenv("RUNNING_IN_DOCKER") == "1":
+        return True
+
+    # Fallback to path-based detection for backward compatibility
     docker_paths = [Path("/app/migrations"), Path("/app/.venv")]
     return any(path.exists() for path in docker_paths)
 
