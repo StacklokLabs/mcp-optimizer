@@ -110,14 +110,13 @@ class ToolhiveClient:
                 "Skipping ToolHive port discovery (not needed in current runtime mode)",
                 host=host,
             )
-            # Set a dummy base_url that won't be used
-            self.base_url = f"http://{self.thv_host}:0"
+            self.base_url = None
             self._discovery_attempted = True
             return
 
         # Don't discover port at initialization - defer until needed
-        # Set a placeholder base_url that will be updated when connection is established
-        self.base_url = f"http://{self.thv_host}:0"
+        # base_url will be set when connection is established
+        self.base_url = None
         logger.info(
             "ToolhiveClient initialized (port discovery deferred)",
             host=host,
@@ -186,7 +185,7 @@ class ToolhiveClient:
         Returns:
             True if port has been discovered, False otherwise
         """
-        return self.thv_port is not None and self.base_url != f"http://{self.thv_host}:0"
+        return self.thv_port is not None and self.base_url is not None
 
     async def ensure_connected(self) -> None:
         """
