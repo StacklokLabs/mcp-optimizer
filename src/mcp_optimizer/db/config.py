@@ -57,30 +57,56 @@ class DatabaseConfig:
         if not self.database_url.startswith("sqlite+aiosqlite://"):
             return
 
+        # First, try to load the extension (it's safe to call multiple times)
         try:
-            # Check if sqlite-vec is already loaded
-            await connection.execute(text("SELECT vec_version()"))
-        except Exception as exc:
-            # sqlite-vec not loaded, need to load it
-            logger.debug("Loading sqlite-vec extension")
-            try:
-                # Get the raw aiosqlite connection
-                raw_conn = await connection.get_raw_connection()
-                # aiosqlite connection has async methods
-                aio_conn = raw_conn.driver_connection
-                if aio_conn is None:
-                    raise RuntimeError("Failed to get raw aiosqlite connection") from exc
+            # Get the raw aiosqlite connection
+            raw_conn = await connection.get_raw_connection()
+            # aiosqlite connection has async methods
+            aio_conn = raw_conn.driver_connection
+            if aio_conn is None:
+                raise RuntimeError("Failed to get raw aiosqlite connection")
 
-                # Load sqlite-vec using aiosqlite async methods
-                extension_path = sqlite_vec.loadable_path()
-                logger.debug(f"Loading sqlite-vec from path: {extension_path}")
-                await aio_conn.enable_load_extension(True)
-                await aio_conn.load_extension(extension_path)
-                await aio_conn.enable_load_extension(False)
-                logger.debug("sqlite-vec extension loaded successfully")
-            except Exception as load_exc:
-                logger.error(f"Failed to load sqlite-vec extension: {load_exc}")
-                raise RuntimeError("Failed to load sqlite-vec extension") from load_exc
+            # Load sqlite-vec using aiosqlite async methods
+            extension_path = sqlite_vec.loadable_path()
+            logger.debug(f"Loading sqlite-vec extension from path: {extension_path}")
+            await aio_conn.enable_load_extension(True)
+            await aio_conn.load_extension(extension_path)
+            await aio_conn.enable_load_extension(False)
+            logger.debug("sqlite-vec extension loaded successfully")
+        except Exception as load_exc:
+            # If loading fails, check if it's already loaded
+            try:
+                await connection.execute(text("SELECT vec_version()"))
+                logger.debug("sqlite-vec extension already loaded")
+            except Exception as check_exc:
+                # Extension is not loaded and loading failed
+                extension_path = (
+                    sqlite_vec.loadable_path() if hasattr(sqlite_vec, "loadable_path") else None
+                )
+                logger.error(
+                    "Failed to load sqlite-vec extension and it's not already loaded",
+                    load_error=str(load_exc),
+                    check_error=str(check_exc),
+                    extension_path=extension_path,
+                )
+                path_str = str(extension_path) if extension_path else "unknown"
+                raise RuntimeError(
+                    f"Failed to load sqlite-vec extension: {load_exc}. Extension path: {path_str}"
+                ) from load_exc
+
+        # Verify the extension is loaded by checking vec_version
+        try:
+            result = await connection.execute(text("SELECT vec_version()"))
+            version = result.scalar()
+            logger.debug(f"sqlite-vec version: {version}")
+        except Exception as verify_exc:
+            logger.error(
+                "sqlite-vec extension appears to be loaded but vec_version() check failed",
+                error=str(verify_exc),
+            )
+            raise RuntimeError(
+                "sqlite-vec extension loaded but vec_version() check failed"
+            ) from verify_exc
 
         # Set PRAGMA foreign_keys
         await connection.execute(text("PRAGMA foreign_keys=ON"))

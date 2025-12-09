@@ -134,6 +134,10 @@ class MCPOptimizerConfig(BaseModel):
         le=300.0,
         description="Maximum backoff delay in seconds for ToolHive retry logic (1.0-300.0)",
     )
+    toolhive_skip_backoff: bool = Field(
+        default=False,
+        description="Skip backoff period between discovery retries (hidden/test-only flag)",
+    )
 
     # Timeout configuration
     mcp_timeout: int = Field(
@@ -492,6 +496,7 @@ def _populate_config_from_env() -> dict[str, Any]:
         "TOOLHIVE_MAX_RETRIES": "toolhive_max_retries",
         "TOOLHIVE_INITIAL_BACKOFF": "toolhive_initial_backoff",
         "TOOLHIVE_MAX_BACKOFF": "toolhive_max_backoff",
+        "TOOLHIVE_SKIP_BACKOFF": "toolhive_skip_backoff",
         "REGISTRY_INGESTION_BATCH_SIZE": "registry_ingestion_batch_size",
         "WORKLOAD_INGESTION_BATCH_SIZE": "workload_ingestion_batch_size",
         "MAX_TOOL_RESPONSE_TOKENS": "max_tool_response_tokens",

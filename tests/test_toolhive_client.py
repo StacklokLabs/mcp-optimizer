@@ -57,7 +57,7 @@ def toolhive_client(monkeypatch):
 
     # Mock the port scanning to avoid network calls during testing
     client = ToolhiveClient(
-        host="127.0.0.1",
+        host="localhost",  # Use localhost instead of 127.0.0.1 for URL replacement tests
         port=8080,
         scan_port_start=50000,
         scan_port_end=50100,
@@ -259,7 +259,8 @@ async def test_client_lazy_initialization(monkeypatch):
     assert client._client is not None
 
 
-def test_port_scanning_not_available(monkeypatch):
+@pytest.mark.asyncio
+async def test_port_scanning_not_available(monkeypatch):
     """Test port scanning when no ToolHive is available."""
 
     async def mock_is_toolhive_available(self, host, port):
@@ -271,22 +272,25 @@ def test_port_scanning_not_available(monkeypatch):
         mock_is_toolhive_available,
     )
 
+    client = ToolhiveClient(
+        host="127.0.0.1",
+        port=None,
+        scan_port_start=50000,
+        scan_port_end=50100,
+        timeout=5.0,
+        max_retries=3,
+        initial_backoff=1.0,
+        max_backoff=60.0,
+    )
+    # Port discovery is lazy, so exception should occur when ensure_connected is called
     with pytest.raises(
         ConnectionError, match="ToolHive not found on 127.0.0.1 in port range 50000-50100"
     ):
-        ToolhiveClient(
-            host="127.0.0.1",
-            port=None,
-            scan_port_start=50000,
-            scan_port_end=50100,
-            timeout=5.0,
-            max_retries=3,
-            initial_backoff=1.0,
-            max_backoff=60.0,
-        )
+        await client.ensure_connected()
 
 
-def test_port_scanning_finds_port(monkeypatch):
+@pytest.mark.asyncio
+async def test_port_scanning_finds_port(monkeypatch):
     """Test port scanning when ToolHive is found."""
 
     async def mock_is_toolhive_available(self, host, port):
@@ -311,11 +315,14 @@ def test_port_scanning_finds_port(monkeypatch):
         initial_backoff=1.0,
         max_backoff=60.0,
     )
+    # Port discovery is lazy, so we need to await ensure_connected first
+    await client.ensure_connected()
     assert client.thv_port == 50050
     assert client.base_url == "http://127.0.0.1:50050"
 
 
-def test_fallback_to_port_scanning(monkeypatch):
+@pytest.mark.asyncio
+async def test_fallback_to_port_scanning(monkeypatch):
     """Test fallback to port scanning when provided port is not available."""
 
     async def mock_is_toolhive_available(self, host, port):
@@ -342,6 +349,8 @@ def test_fallback_to_port_scanning(monkeypatch):
         initial_backoff=1.0,
         max_backoff=60.0,
     )
+    # Port discovery is lazy, so we need to await ensure_connected first
+    await client.ensure_connected()
     assert client.thv_port == 50075
     assert client.base_url == "http://127.0.0.1:50075"
 
@@ -537,14 +546,49 @@ async def test_get_workload_details_success(toolhive_client, mock_workload_detai
 
 
 @pytest.mark.asyncio
-async def test_get_workload_details_replaces_localhost(
-    toolhive_client, mock_workload_detail_response
-):
+async def test_get_workload_details_replaces_localhost(mock_workload_detail_response, monkeypatch):
     """Test that localhost URLs are replaced with the toolhive host."""
+    # Mock _is_running_in_docker to return True so URL replacement happens
+    monkeypatch.setattr(
+        "mcp_optimizer.toolhive.toolhive_client._is_running_in_docker",
+        lambda: True,
+    )
+
+    async def mock_scan_for_toolhive(self, host, start_port, end_port):
+        return 8080
+
+    async def mock_is_toolhive_available(self, host, port):
+        if port == 8080:
+            return (Version.parse("1.0.0"), 8080)
+        raise ToolhiveScanError(f"Port {port} not available")
+
+    monkeypatch.setattr(
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._scan_for_toolhive",
+        mock_scan_for_toolhive,
+    )
+    monkeypatch.setattr(
+        "mcp_optimizer.toolhive.toolhive_client.ToolhiveClient._is_toolhive_available",
+        mock_is_toolhive_available,
+    )
+
+    # Use a host that's NOT localhost/127.0.0.1 so replacement happens
+    client = ToolhiveClient(
+        host="toolhive-host",
+        port=8080,
+        scan_port_start=50000,
+        scan_port_end=50100,
+        timeout=5.0,
+        max_retries=3,
+        initial_backoff=1.0,
+        max_backoff=60.0,
+    )
+
     # Modify the mock response to have a localhost URL
     mock_workload_detail_response["url"] = "http://localhost:8080/mcp"
 
-    async with toolhive_client as client:
+    async with client:
+        # Ensure connected first (lazy port discovery)
+        await client.ensure_connected()
         # Mock the HTTP client
         mock_response = Mock()
         mock_response.json.return_value = mock_workload_detail_response
@@ -556,7 +600,7 @@ async def test_get_workload_details_replaces_localhost(
         result = await client.get_workload_details("test-server")
 
         # Verify that localhost was replaced with the toolhive host
-        assert result.url == f"http://{toolhive_client.thv_host}:8080/mcp"
+        assert result.url == "http://toolhive-host:8080/mcp"
 
 
 @pytest.mark.asyncio

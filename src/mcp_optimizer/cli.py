@@ -201,6 +201,7 @@ def main(**kwargs: Any) -> None:
         initial_backoff=config.toolhive_initial_backoff,
         max_backoff=config.toolhive_max_backoff,
         skip_port_discovery=(config.runtime_mode == "k8s"),
+        skip_backoff=config.toolhive_skip_backoff,
     )
 
     # Database setup and testing is now handled in config.py's _setup_secure_database_path

@@ -62,6 +62,7 @@ jobs:
           --env TOOLHIVE_PORT=9090
           --env WORKLOAD_POLLING_INTERVAL=2
           --env ALLOWED_GROUPS=default
+          --env TOOLHIVE_SKIP_BACKOFF=1
 
       - name: Check server status
         run: |
@@ -106,6 +107,64 @@ jobs:
         with:
           enable-cache: true
           python-version: '3.13'
+
+      - name: Wait for workload ingestion to complete
+        run: |
+          echo "Waiting for workload ingestion to complete..."
+          MAX_ATTEMPTS=60  # 1 minute with 1 second intervals
+          ATTEMPT=0
+          INGESTED=false
+
+          # Create a simple Python script to check if tools are available
+          cat > /tmp/check_ingestion.py << 'EOF'
+          import asyncio
+          import json
+          import sys
+          from mcp import ClientSession
+          from mcp.client.streamable_http import streamablehttp_client
+          from mcp.types import ListToolsResult
+
+          async def check():
+              try:
+                  async with streamablehttp_client("http://localhost:8080/mcp") as (read_stream, write_stream, _):
+                      async with ClientSession(read_stream, write_stream) as session:
+                          await session.initialize()
+                          # Call list_tools tool (not the MCP protocol method)
+                          result = await session.call_tool("list_tools", {})
+                          # Parse the result which is a JSON string containing ListToolsResult
+                          result_text = result.content[0].text if result.content else None
+                          if result_text:
+                              list_result = ListToolsResult.model_validate_json(result_text)
+                              tools = [tool.name for tool in list_result.tools]
+                              if "get_current_time" in tools and "convert_time" in tools:
+                                  print("Workload ingestion completed - time server tools found!")
+                                  return 0
+                          return 1
+              except Exception as e:
+                  return 1
+
+          sys.exit(asyncio.run(check()))
+          EOF
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            if uv run /tmp/check_ingestion.py 2>/dev/null; then
+              echo "Workload ingestion completed!"
+              INGESTED=true
+              break
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Waiting for ingestion... (attempt $ATTEMPT/$MAX_ATTEMPTS)"
+            sleep 1
+          done
+
+          if [ "$INGESTED" = false ]; then
+            echo "ERROR: Workload ingestion did not complete within 1 minute"
+            echo "=== mcp-optimizer logs ==="
+            docker logs mcp-optimizer 2>&1 | tail -50 || true
+            echo "=== ToolHive workload status ==="
+            thv ls || true
+            exit 1
+          fi
 
       - name: Run integration tests (with fetch server)
         env:
