@@ -38,7 +38,12 @@ jobs:
           python-version: '3.13'
 
       - name: Install mcp-malt CLI
-        run: uv tool install "mcp-malt-cli @ git+https://github.com/StacklokLabs/mcp-malt.git#subdirectory=cli"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Configure git to use GitHub token for authentication
+          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+          uv tool install "mcp-malt-cli @ git+https://github.com/StacklokLabs/mcp-malt.git#subdirectory=cli"
 
       - name: Install ToolHive
         uses: StacklokLabs/toolhive-actions/install@6a095f99aa2fd6cd92cf0bb94bdf509b99820c06 # v0.0.3
