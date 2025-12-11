@@ -4,7 +4,7 @@ tasks:
   install:
     desc: Install dependencies
     cmds:
-      - uv sync --dev --all-packages --group security
+      - uv sync --dev --all-packages --group security --group examples
 
   lint:
     desc: Run linting with ruff

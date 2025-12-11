@@ -26,3 +26,7 @@ wheels/
 bandit-report.json
 pip-audit-report.json
 sbom.json
+
+# Example data and results (download from releases)
+examples/anthropic_comparison/*.json
+examples/anthropic_comparison/*.png
