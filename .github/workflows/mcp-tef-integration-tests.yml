@@ -1,4 +1,4 @@
-name: MCP-MALT Integration Tests
+name: MCP-TEF Integration Tests
 
 on:
   pull_request:
@@ -8,8 +8,8 @@ permissions:
   contents: read
 
 jobs:
-  mcp-malt-integration-tests:
-    name: MCP-MALT Query Alignment Tests
+  mcp-tef-integration-tests:
+    name: MCP-TEF Query Alignment Tests
     runs-on: ubuntu-latest
     # Don't block PR merge on failure
     continue-on-error: true
@@ -37,13 +37,8 @@ jobs:
           enable-cache: true
           python-version: '3.13'
 
-      - name: Install mcp-malt CLI
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Configure git to use GitHub token for authentication
-          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
-          uv tool install "mcp-malt-cli @ git+https://github.com/StacklokLabs/mcp-malt.git@cli-v0.1.0#subdirectory=cli"
+      - name: Install mtef CLI
+        run: uv tool install "mtef @ git+https://github.com/StacklokLabs/mcp-tef.git#subdirectory=cli"
 
       - name: Install ToolHive
         uses: StacklokLabs/toolhive-actions/install@6a095f99aa2fd6cd92cf0bb94bdf509b99820c06 # v0.0.3
@@ -160,10 +155,9 @@ jobs:
           echo "MCP_OPTIMIZER_URL=${MCP_OPTIMIZER_URL}" >> $GITHUB_OUTPUT
           echo "mcp-optimizer URL: ${MCP_OPTIMIZER_URL}"
 
-      - name: Deploy mcp-malt server
+      - name: Deploy mcp-tef server
         run: |
-          mcp-malt-cli deploy \
-            --version latest \
+          mtef deploy \
             --port 8000 \
             --env OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }} \
             --env LOG_LEVEL=INFO \
@@ -173,17 +167,17 @@ jobs:
       - name: Create test case and run alignment test
         id: test-run
         run: |
-          mkdir -p /tmp/mcp-malt-results
+          mkdir -p /tmp/mcp-tef-results
 
           # Get MCP optimizer URL for Docker access (rewrite localhost to host.docker.internal)
           MCP_SERVER_URL=${{ steps.get-url.outputs.MCP_OPTIMIZER_URL }}
           MCP_SERVER_URL=$(echo "${MCP_SERVER_URL}" | sed 's/127\.0\.0\.1/host.docker.internal/g')
-          echo "MCP Server URL for mcp-malt: ${MCP_SERVER_URL}"
+          echo "MCP Server URL for mcp-tef: ${MCP_SERVER_URL}"
 
           # Create test case for time query using mcp-optimizer
           echo "Creating test case..."
           set +e
-          TEST_CASE_OUTPUT=$(mcp-malt-cli test-case create \
+          TEST_CASE_OUTPUT=$(mtef test-case create \
             --name "MCP Optimizer Time Query" \
             --query "Tell me the current time in Tokyo" \
             --servers "${MCP_SERVER_URL}" \
@@ -201,19 +195,19 @@ jobs:
 
           if [ -z "${TEST_CASE_ID}" ] || [ ${TEST_CASE_EXIT} -ne 0 ]; then
             echo "ERROR: Failed to create test case"
-            echo "${TEST_CASE_OUTPUT}" > /tmp/mcp-malt-results/test-case-error.txt
+            echo "${TEST_CASE_OUTPUT}" > /tmp/mcp-tef-results/test-case-error.txt
             echo "test_result=error" >> $GITHUB_OUTPUT
             echo "test_message=Failed to create test case" >> $GITHUB_OUTPUT
             exit 0
           fi
 
           echo "Test case ID: ${TEST_CASE_ID}"
-          echo "${TEST_CASE_OUTPUT}" > /tmp/mcp-malt-results/test-case.json
+          echo "${TEST_CASE_OUTPUT}" > /tmp/mcp-tef-results/test-case.json
 
           # Execute test run
           echo "Executing test run..."
           set +e
-          TEST_RUN_OUTPUT=$(mcp-malt-cli test-run execute "${TEST_CASE_ID}" \
+          TEST_RUN_OUTPUT=$(mtef test-run execute "${TEST_CASE_ID}" \
             --model-provider openrouter \
             --model-name anthropic/claude-sonnet-4.5 \
             --api-key ${{ secrets.OPENROUTER_API_KEY }} \
@@ -230,7 +224,7 @@ jobs:
 
           if [ -z "${TEST_RUN_ID}" ] || [ ${TEST_RUN_EXIT} -ne 0 ]; then
             echo "ERROR: Failed to execute test run"
-            echo "${TEST_RUN_OUTPUT}" > /tmp/mcp-malt-results/test-run-error.txt
+            echo "${TEST_RUN_OUTPUT}" > /tmp/mcp-tef-results/test-run-error.txt
             echo "test_result=error" >> $GITHUB_OUTPUT
             echo "test_message=Failed to execute test run" >> $GITHUB_OUTPUT
             exit 0
@@ -257,7 +251,7 @@ jobs:
             POLL_WAITED=$((POLL_WAITED + POLL_INTERVAL))
 
             set +e
-            POLL_OUTPUT=$(mcp-malt-cli test-run get "${TEST_RUN_ID}" \
+            POLL_OUTPUT=$(mtef test-run get "${TEST_RUN_ID}" \
               --format json \
               --insecure 2>&1)
             set -e
@@ -266,7 +260,7 @@ jobs:
           done
 
           # Save final results
-          echo "${POLL_OUTPUT}" > /tmp/mcp-malt-results/test-run-result.json
+          echo "${POLL_OUTPUT}" > /tmp/mcp-tef-results/test-run-result.json
 
           CLASSIFICATION=$(echo "${POLL_OUTPUT}" | jq -r '.classification // "unknown"')
           echo "Final status: ${STATUS}"
@@ -288,7 +282,7 @@ jobs:
           fi
 
           # Create summary
-          cat > /tmp/mcp-malt-results/summary.json << EOF
+          cat > /tmp/mcp-tef-results/summary.json << EOF
           {
             "test_case_id": "${TEST_CASE_ID}",
             "test_run_id": "${TEST_RUN_ID}",
@@ -302,27 +296,27 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mcp-malt-test-results
-          path: /tmp/mcp-malt-results/
+          name: mcp-tef-test-results
+          path: /tmp/mcp-tef-results/
           retention-days: 30
 
       - name: Report test status
         if: always()
         run: |
-          echo "=== MCP-MALT Integration Test Results ==="
+          echo "=== MCP-TEF Integration Test Results ==="
           echo "Result: ${{ steps.test-run.outputs.test_result }}"
           echo "Message: ${{ steps.test-run.outputs.test_message }}"
 
-          if [ -f /tmp/mcp-malt-results/summary.json ]; then
+          if [ -f /tmp/mcp-tef-results/summary.json ]; then
             echo ""
             echo "=== Summary ==="
-            cat /tmp/mcp-malt-results/summary.json | jq .
+            cat /tmp/mcp-tef-results/summary.json | jq .
           fi
 
           # Warn but don't fail
           if [ "${{ steps.test-run.outputs.test_result }}" != "success" ]; then
             echo ""
-            echo "::warning::MCP-MALT integration test did not pass: ${{ steps.test-run.outputs.test_message }}"
+            echo "::warning::MCP-TEF integration test did not pass: ${{ steps.test-run.outputs.test_message }}"
           fi
 
       - name: Capture container logs
@@ -331,8 +325,8 @@ jobs:
           echo "=== mcp-optimizer container logs ==="
           docker logs mcp-optimizer 2>&1 | tail -100 || true
           echo ""
-          echo "=== mcp-malt container logs ==="
-          docker logs mcp-malt 2>&1 | tail -100 || true
+          echo "=== mcp-tef container logs ==="
+          docker logs mcp-tef 2>&1 | tail -100 || true
           echo ""
           echo "=== time container logs ==="
           docker logs time 2>&1 | tail -50 || true
