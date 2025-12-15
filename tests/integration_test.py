@@ -26,12 +26,27 @@ from typing import NamedTuple
 import structlog
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
-from mcp.types import CallToolResult, ListToolsResult
+from mcp.types import CallToolResult
+from mcp.types import Tool as McpTool
+from pydantic import BaseModel, ConfigDict
 
 logger = structlog.get_logger(__name__)
 
 
-class McpTool(NamedTuple):
+class ToolWithServer(McpTool):
+    """Extended Tool model that includes the server name for routing calls."""
+
+    model_config = ConfigDict(extra="allow")
+    mcp_server_name: str
+
+
+class ListToolsWithServerResult(BaseModel):
+    """ListToolsResult that uses ToolWithServer instead of Tool."""
+
+    tools: list[ToolWithServer]
+
+
+class McpToolTuple(NamedTuple):
     name: str
     mcp_server_name: str
 
@@ -49,24 +64,26 @@ def _validate_tool_result(tool_call_result: CallToolResult) -> str | None:
         return None
 
 
-def _get_list_tools(tool_call_result: CallToolResult) -> ListToolsResult | None:
-    """Parse the tool result text into a ListToolsResult."""
+def _get_list_tools(tool_call_result: CallToolResult) -> ListToolsWithServerResult | None:
+    """Parse the tool result text into a ListToolsWithServerResult."""
     result = _validate_tool_result(tool_call_result)
     if result is None:
         return None
 
     try:
-        return ListToolsResult.model_validate_json(result)
+        return ListToolsWithServerResult.model_validate_json(result)
     except Exception:
         logger.error(f"Failed to parse list_tools result: {result}", exc_info=True)
         return None
 
 
-def _check_expected_tools(list_tools: ListToolsResult, expected_tools: set[McpTool]) -> bool:
+def _check_expected_tools(
+    list_tools: ListToolsWithServerResult, expected_tools: set[McpToolTuple]
+) -> bool:
     """
-    Check if the expected tools are present in the ListToolsResult.
+    Check if the expected tools are present in the ListToolsWithServerResult.
     """
-    found_tools = {McpTool(tool.name, tool.mcp_server_name) for tool in list_tools.tools}
+    found_tools = {McpToolTuple(tool.name, tool.mcp_server_name) for tool in list_tools.tools}
 
     if not expected_tools.issubset(found_tools):
         logger.error(f"Expected tools not found. Expected: {expected_tools}, Found: {found_tools}")
@@ -81,7 +98,10 @@ def _is_find_tool_result_valid(tool_call_result: CallToolResult) -> bool:
     if list_tools is None:
         return False
 
-    expected_tools = {McpTool("get_current_time", "time"), McpTool("convert_time", "time")}
+    expected_tools = {
+        McpToolTuple("get_current_time", "time"),
+        McpToolTuple("convert_time", "time"),
+    }
     return _check_expected_tools(list_tools, expected_tools)
 
 
@@ -91,7 +111,7 @@ def _is_search_registry_result_valid(tool_call_result: CallToolResult) -> bool:
     if list_tools is None:
         return False
 
-    expected_tools = {McpTool("fetch", "fetch")}
+    expected_tools = {McpToolTuple("fetch", "fetch")}
     return _check_expected_tools(list_tools, expected_tools)
 
 
@@ -104,11 +124,14 @@ def _is_list_tools_result_valid(
         return False
 
     # Always expect time server tools
-    expected_tools = {McpTool("get_current_time", "time"), McpTool("convert_time", "time")}
+    expected_tools = {
+        McpToolTuple("get_current_time", "time"),
+        McpToolTuple("convert_time", "time"),
+    }
 
     # Conditionally expect fetch tool based on expect_fetch_absent variable
     if not expect_fetch_absent:
-        expected_tools.add(McpTool("fetch", "fetch"))
+        expected_tools.add(McpToolTuple("fetch", "fetch"))
 
     return _check_expected_tools(list_tools, expected_tools)
 
