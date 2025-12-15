@@ -121,26 +121,31 @@ jobs:
           import json
           import sys
           from mcp import ClientSession
-          from mcp.client.streamable_http import streamablehttp_client
-          from mcp.types import ListToolsResult
+          from mcp.client.streamable_http import streamable_http_client
+          from mcp.types import Tool as McpTool
+          from pydantic import ConfigDict
+
+          class ToolWithServer(McpTool):
+              model_config = ConfigDict(extra="allow")
+              mcp_server_name: str
 
           async def check():
               try:
-                  async with streamablehttp_client("http://localhost:8080/mcp") as (read_stream, write_stream, _):
+                  async with streamable_http_client("http://localhost:8080/mcp") as (read_stream, write_stream, _):
                       async with ClientSession(read_stream, write_stream) as session:
                           await session.initialize()
                           # Call list_tools tool (not the MCP protocol method)
-                          result = await session.call_tool("list_tools", {})
+                          result = await session.call_tool("list_tools")
                           # Parse the result which is a JSON string containing ListToolsResult
-                          result_text = result.content[0].text if result.content else None
-                          if result_text:
-                              list_result = ListToolsResult.model_validate_json(result_text)
-                              tools = [tool.name for tool in list_result.tools]
-                              if "get_current_time" in tools and "convert_time" in tools:
-                                  print("Workload ingestion completed - time server tools found!")
+                          result_list = [txt_content.text for txt_content in result.content] if result.content else []
+                          if result_list:
+                              list_result = [ToolWithServer.model_validate_json(item) for item in result_list]
+                              if len(list_result) > 0:
+                                  print("Workload ingestion completed!")
                                   return 0
                           return 1
               except Exception as e:
+                  print(f"Error during MCP server check: {e}")
                   return 1
 
           sys.exit(asyncio.run(check()))

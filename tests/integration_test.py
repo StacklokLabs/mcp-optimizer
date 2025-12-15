@@ -38,7 +38,6 @@ class ToolWithServer(McpTool):
 
     model_config = ConfigDict(extra="allow")
     mcp_server_name: str
-    name: str
 
 
 class McpToolTuple(NamedTuple):
