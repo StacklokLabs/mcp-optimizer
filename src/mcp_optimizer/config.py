@@ -101,6 +101,12 @@ class MCPOptimizerConfig(BaseModel):
             "0 means no polling. Default is 24 hours since the registry should be fairly static."
         ),
     )
+    startup_polling_delay: int = Field(
+        default=3,
+        ge=0,
+        le=300,
+        description="Delay in seconds before initial polling at startup (0-300)",
+    )
     targeted_polling_max_attempts: int = Field(
         default=120,
         ge=1,
@@ -484,6 +490,7 @@ def _populate_config_from_env() -> dict[str, Any]:
         "TOOLHIVE_END_PORT_SCAN": "toolhive_end_port_scan",
         "WORKLOAD_POLLING_INTERVAL": "workload_polling_interval",
         "REGISTRY_POLLING_INTERVAL": "registry_polling_interval",
+        "STARTUP_POLLING_DELAY": "startup_polling_delay",
         "MCP_TIMEOUT": "mcp_timeout",
         "EMBEDDING_MODEL_NAME": "embedding_model_name",
         "EMBEDDING_THREADS": "embedding_threads",

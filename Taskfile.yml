@@ -104,7 +104,7 @@ tasks:
       TOOLHIVE_HOST: "localhost"
       TOOLHIVE_PORT: "8080"
     cmds:
-      - uv run mtm
+      - uv run mcpo
     deps:
       - install
 

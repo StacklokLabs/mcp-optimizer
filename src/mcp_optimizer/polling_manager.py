@@ -146,10 +146,6 @@ def configure_polling(toolhive_client: ToolhiveClient, config: MCPOptimizerConfi
     workload_interval = config.workload_polling_interval
     registry_interval = config.registry_polling_interval
 
-    if workload_interval <= 0 and registry_interval <= 0:
-        logger.info("Polling disabled by configuration")
-        return
-
     logger.info(
         "configure_polling called",
         workload_interval=workload_interval,
@@ -173,6 +169,7 @@ def configure_polling(toolhive_client: ToolhiveClient, config: MCPOptimizerConfi
         toolhive_client=toolhive_client,
         workload_polling_interval=workload_interval,
         registry_polling_interval=registry_interval,
+        startup_polling_delay=config.startup_polling_delay,
         mcp_timeout=config.mcp_timeout,
         registry_ingestion_batch_size=config.registry_ingestion_batch_size,
         workload_ingestion_batch_size=config.workload_ingestion_batch_size,
@@ -225,6 +222,7 @@ class PollingManager:
         toolhive_client: ToolhiveClient,
         workload_polling_interval: int,  # seconds
         registry_polling_interval: int,  # seconds
+        startup_polling_delay: int,  # seconds
         mcp_timeout: int,
         registry_ingestion_batch_size: int,
         workload_ingestion_batch_size: int,
@@ -245,6 +243,7 @@ class PollingManager:
             toolhive_client: ToolhiveClient instance for communication.
             workload_polling_interval: Interval in seconds between workload polls.
             registry_polling_interval: Interval in seconds between registry polls.
+            startup_polling_delay: Delay in seconds before initial polling at startup.
             mcp_timeout: Timeout for MCP operations in seconds.
             registry_ingestion_batch_size: Batch size for parallel registry server ingestion.
             workload_ingestion_batch_size: Batch size for parallel workload ingestion.
@@ -257,6 +256,7 @@ class PollingManager:
         self.embedding_manager = embedding_manager
         self.workload_polling_interval = workload_polling_interval
         self.registry_polling_interval = registry_polling_interval
+        self.startup_polling_delay = startup_polling_delay
         self.toolhive_client = toolhive_client
         self.targeted_polling_max_attempts = targeted_polling_max_attempts
         self.targeted_polling_interval = targeted_polling_interval
@@ -282,6 +282,7 @@ class PollingManager:
         self._workload_polling_paused = False
         self._workload_polling_pause_lock = asyncio.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._registry_startup_complete: asyncio.Event | None = None
 
     async def start_polling(self) -> None:
         """Start the periodic polling tasks."""
@@ -289,6 +290,7 @@ class PollingManager:
             "=== START POLLING CALLED ===",
             workload_interval=self.workload_polling_interval,
             registry_interval=self.registry_polling_interval,
+            startup_delay=self.startup_polling_delay,
         )
         if self._workload_polling_task is not None or self._registry_polling_task is not None:
             logger.warning(
@@ -305,15 +307,18 @@ class PollingManager:
         # Store the event loop for later use by targeted polling
         self._loop = asyncio.get_running_loop()
 
+        # Create a shared event for coordinating startup sequence
+        self._registry_startup_complete = asyncio.Event()
+
         logger.info(
             "Creating polling tasks",
             workload_interval_seconds=self.workload_polling_interval,
             registry_interval_seconds=self.registry_polling_interval,
+            startup_delay_seconds=self.startup_polling_delay,
         )
-        if self.workload_polling_interval > 0:
-            self._workload_polling_task = asyncio.create_task(self._workload_polling_loop())
-        if self.registry_polling_interval > 0:
-            self._registry_polling_task = asyncio.create_task(self._registry_polling_loop())
+        # Always create both tasks (startup run is mandatory)
+        self._registry_polling_task = asyncio.create_task(self._registry_polling_loop())
+        self._workload_polling_task = asyncio.create_task(self._workload_polling_loop())
         logger.info(
             "Polling tasks created successfully",
             workload_task_created=self._workload_polling_task is not None,
@@ -358,21 +363,45 @@ class PollingManager:
 
     async def _workload_polling_loop(self) -> None:
         """Workload polling loop that runs periodically."""
-        logger.info(
-            "=== WORKLOAD POLLING LOOP STARTED ===", interval=self.workload_polling_interval
-        )
-        # Wait before first polling attempt to allow server to fully start
-        await asyncio.sleep(self.workload_polling_interval)
+        logger.info("=== WORKLOAD POLLING LOOP STARTED ===")
+
+        # Wait for registry startup to complete (sequential startup execution)
+        if self._registry_startup_complete is not None:
+            logger.info("Waiting for registry startup to complete before workload polling")
+            await self._registry_startup_complete.wait()
+
+        # ALWAYS run first poll (startup run is mandatory)
+        logger.info("Running initial workload polling (startup)")
+        try:
+            await self._poll_workloads()
+            logger.info("Initial workload polling completed successfully")
+        except Exception as e:
+            logger.exception("Error during initial workload polling", error=str(e))
+
+        # If interval <= 0, stop after initial run
+        if self.workload_polling_interval <= 0:
+            logger.info("Workload polling disabled (interval <= 0), stopping after startup run")
+            return
+
+        # Continue with periodic polling
         cycle_count = 0
         while not self._shutdown_requested:
-            cycle_count += 1
+            # Wait for next polling interval
+            logger.debug(
+                "Sleeping until next workload poll", seconds=self.workload_polling_interval
+            )
+            try:
+                await asyncio.sleep(self.workload_polling_interval)
+            except asyncio.CancelledError:
+                logger.info("Workload polling loop interrupted by cancellation")
+                break
 
             # Check if polling is paused (during targeted polling) - thread-safe access
             async with self._workload_polling_pause_lock:
                 is_paused = self._workload_polling_paused
 
             if is_paused:
-                logger.debug("Workload polling is paused, skipping cycle", cycle=cycle_count)
+                logger.debug("Workload polling is paused, skipping cycle")
                 try:
                     await asyncio.sleep(1.0)  # Check every second if we can resume
                 except asyncio.CancelledError:
@@ -380,6 +409,10 @@ class PollingManager:
                     break
                 continue
 
+            # Increment cycle count for this poll
+            cycle_count += 1
+
+            # Run periodic poll
             logger.info(
                 "Starting workload polling cycle",
                 cycle=cycle_count,
@@ -394,28 +427,53 @@ class PollingManager:
                 )
                 # Continue polling even if one cycle fails
 
-            # Wait for next polling interval or until shutdown
-            logger.debug(
-                "Sleeping until next workload poll", seconds=self.workload_polling_interval
-            )
-            try:
-                await asyncio.sleep(self.workload_polling_interval)
-            except asyncio.CancelledError:
-                logger.info("Workload polling loop interrupted by cancellation")
-                break
-
         logger.info("Workload polling loop ended", total_cycles=cycle_count)
 
     async def _registry_polling_loop(self) -> None:
         """Registry polling loop that runs periodically."""
+        logger.info("=== REGISTRY POLLING LOOP STARTED ===")
+
+        # Wait for configured startup delay before first poll
         logger.info(
-            "=== REGISTRY POLLING LOOP STARTED ===", interval=self.registry_polling_interval
+            "Waiting for startup delay before initial registry poll",
+            seconds=self.startup_polling_delay,
         )
-        # Wait before first polling attempt to allow server to fully start
-        await asyncio.sleep(self.registry_polling_interval)
+        await asyncio.sleep(self.startup_polling_delay)
+
+        # ALWAYS run first poll (startup run is mandatory)
+        logger.info("Running initial registry polling (startup)")
+        try:
+            await self._poll_registry()
+            logger.info("Initial registry polling completed successfully")
+        except Exception as e:
+            logger.exception("Error during initial registry polling", error=str(e))
+
+        # Signal workload polling that registry startup is complete
+        if self._registry_startup_complete is not None:
+            self._registry_startup_complete.set()
+
+        # If interval <= 0, stop after initial run
+        if self.registry_polling_interval <= 0:
+            logger.info("Registry polling disabled (interval <= 0), stopping after startup run")
+            return
+
+        # Continue with periodic polling
         cycle_count = 0
         while not self._shutdown_requested:
+            # Wait for next polling interval
+            logger.debug(
+                "Sleeping until next registry poll", seconds=self.registry_polling_interval
+            )
+            try:
+                await asyncio.sleep(self.registry_polling_interval)
+            except asyncio.CancelledError:
+                logger.info("Registry polling loop interrupted by cancellation")
+                break
+
+            # Increment cycle count for this poll
             cycle_count += 1
+
+            # Run periodic poll
             logger.info(
                 "Starting registry polling cycle",
                 cycle=cycle_count,
@@ -429,16 +487,6 @@ class PollingManager:
                     "Error during registry polling cycle", error=str(e), cycle=cycle_count
                 )
                 # Continue polling even if one cycle fails
-
-            # Wait for next polling interval or until shutdown
-            logger.debug(
-                "Sleeping until next registry poll", seconds=self.registry_polling_interval
-            )
-            try:
-                await asyncio.sleep(self.registry_polling_interval)
-            except asyncio.CancelledError:
-                logger.info("Registry polling loop interrupted by cancellation")
-                break
 
         logger.info("Registry polling loop ended", total_cycles=cycle_count)
 

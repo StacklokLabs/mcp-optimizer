@@ -1246,7 +1246,9 @@ class IngestionService:
             )
             raise e
 
-    async def _ingest_registry_servers(self, registry: Registry, conn: AsyncConnection) -> int:
+    async def _ingest_registry_servers(  # noqa: C901
+        self, registry: Registry, conn: AsyncConnection
+    ) -> int:
         """
         Ingest all servers from registry.
 
@@ -1269,13 +1271,23 @@ class IngestionService:
         # Process container servers
         tasks = []
         if registry.servers and isinstance(registry.servers, dict):
-            for image, server_metadata in registry.servers.items():
-                # Use image as identifier for container servers
-                registry_server_identifiers.add((image, False))  # (package, is_remote)
+            for _, server_metadata in registry.servers.items():
+                # Skip container servers without an image (invalid)
+                if not server_metadata.image:
+                    logger.warning(
+                        "Skipping container server without image",
+                        server_name=server_metadata.name,
+                    )
+                    continue
+
+                # Use image field from metadata as identifier for container servers
+                registry_server_identifiers.add(
+                    (server_metadata.image, False)
+                )  # (package, is_remote)
 
                 tasks.append(
                     self._upsert_registry_server(
-                        server_metadata, package=image, remote=False, conn=conn
+                        server_metadata, package=server_metadata.image, remote=False, conn=conn
                     )
                 )
 
