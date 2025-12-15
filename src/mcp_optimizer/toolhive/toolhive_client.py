@@ -683,11 +683,13 @@ class ToolhiveClient:
             registry = Registry.model_validate(registry_response.registry)
             # Re-map the registry.servers so that is mapping of images to image metadata mapping
             # instead of server names to image metadata mapping
-            image_to_metadata = {
-                image_metadata.image: image_metadata
-                for server_name, image_metadata in registry.servers.items()
-            }
-            registry.servers = image_to_metadata
+            if registry.servers is not None:
+                image_to_metadata: dict[str, ImageMetadata] = {
+                    image_metadata.image: image_metadata
+                    for server_name, image_metadata in registry.servers.items()
+                    if image_metadata.image is not None
+                }
+                registry.servers = image_to_metadata
 
             logger.info(
                 "Successfully fetched registry",

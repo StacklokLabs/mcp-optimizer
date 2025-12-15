@@ -6,7 +6,7 @@ from Toolhive into the MCP Optimizer database with semantic embeddings.
 """
 
 import asyncio
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, cast
 
 import numpy as np
 import structlog
@@ -1002,7 +1002,10 @@ class IngestionService:
             server_id, server_was_updated = await self._upsert_workload_server(workload, conn)
 
             # Get the server to determine context for tool embeddings
-            workload_server = await self.workload_server_ops.get_server_by_id(server_id, conn=conn)
+            workload_server = cast(
+                WorkloadServer,
+                await self.workload_server_ops.get_server_by_id(server_id, conn=conn),
+            )
 
             # Determine server name context for tool embeddings
             # Use registry_server_name if linked, otherwise use workload name
@@ -1348,7 +1351,10 @@ class IngestionService:
             Set of workload names that were deleted
         """
         # Get all workload servers from database
-        all_workload_servers = await self.workload_server_ops.list_servers(conn=conn)
+        all_workload_servers = cast(
+            list[WorkloadServer],
+            await self.workload_server_ops.list_servers(conn=conn),
+        )
         deleted_workload_names = set()
 
         for workload_server in all_workload_servers:
@@ -1400,7 +1406,10 @@ class IngestionService:
             Number of registry servers deleted
         """
         # Get all registry servers from database
-        all_registry_servers = await self.registry_server_ops.list_servers(conn=conn)
+        all_registry_servers = cast(
+            list[RegistryServer],
+            await self.registry_server_ops.list_servers(conn=conn),
+        )
         deleted_count = 0
 
         for registry_server in all_registry_servers:

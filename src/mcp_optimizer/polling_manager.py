@@ -597,13 +597,13 @@ class PollingManager:
                     workloads_matching_registry = await self.workload_ops.list_servers_by_registry(
                         registry_server_id=registry_server.id
                     )
-                    if workloads_matching_registry is not None and any(
-                        workload.status == McpStatus.RUNNING
-                        for workload in workloads_matching_registry
-                    ):
+                    running_workloads = [
+                        w for w in workloads_matching_registry if w.status == McpStatus.RUNNING
+                    ]
+                    if running_workloads:
                         logger.info(
-                            "Targeted polling succeeded - workload found",
-                            server_name=workloads_matching_registry.name,
+                            "Targeted polling succeeded - workloads found",
+                            server_names=[w.name for w in running_workloads],
                             attempts=poll_count,
                             elapsed_seconds=poll_count,
                         )
