@@ -386,21 +386,6 @@ class PollingManager:
         # Continue with periodic polling
         cycle_count = 0
         while not self._shutdown_requested:
-            cycle_count += 1
-
-            # Check if polling is paused (during targeted polling) - thread-safe access
-            async with self._workload_polling_pause_lock:
-                is_paused = self._workload_polling_paused
-
-            if is_paused:
-                logger.debug("Workload polling is paused, skipping cycle", cycle=cycle_count)
-                try:
-                    await asyncio.sleep(1.0)  # Check every second if we can resume
-                except asyncio.CancelledError:
-                    logger.info("Workload polling loop interrupted by cancellation")
-                    break
-                continue
-
             # Wait for next polling interval
             logger.debug(
                 "Sleeping until next workload poll", seconds=self.workload_polling_interval
@@ -410,6 +395,22 @@ class PollingManager:
             except asyncio.CancelledError:
                 logger.info("Workload polling loop interrupted by cancellation")
                 break
+
+            # Check if polling is paused (during targeted polling) - thread-safe access
+            async with self._workload_polling_pause_lock:
+                is_paused = self._workload_polling_paused
+
+            if is_paused:
+                logger.debug("Workload polling is paused, skipping cycle")
+                try:
+                    await asyncio.sleep(1.0)  # Check every second if we can resume
+                except asyncio.CancelledError:
+                    logger.info("Workload polling loop interrupted by cancellation")
+                    break
+                continue
+
+            # Increment cycle count for this poll
+            cycle_count += 1
 
             # Run periodic poll
             logger.info(
@@ -459,8 +460,6 @@ class PollingManager:
         # Continue with periodic polling
         cycle_count = 0
         while not self._shutdown_requested:
-            cycle_count += 1
-
             # Wait for next polling interval
             logger.debug(
                 "Sleeping until next registry poll", seconds=self.registry_polling_interval
@@ -470,6 +469,9 @@ class PollingManager:
             except asyncio.CancelledError:
                 logger.info("Registry polling loop interrupted by cancellation")
                 break
+
+            # Increment cycle count for this poll
+            cycle_count += 1
 
             # Run periodic poll
             logger.info(
