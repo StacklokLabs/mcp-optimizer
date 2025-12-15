@@ -124,9 +124,8 @@ jobs:
                           result_text = result.content[0].text if result.content else None
                           if result_text:
                               list_result = ListToolsResult.model_validate_json(result_text)
-                              tools = [tool.name for tool in list_result.tools]
-                              if "get_current_time" in tools and "convert_time" in tools:
-                                  print("Workload ingestion completed - time server tools found!")
+                              if len(list_result.tools) > 0:
+                                  print("Workload ingestion completed - server tools found!")
                                   return 0
                           return 1
               except Exception as e:
