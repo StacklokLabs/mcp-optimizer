@@ -240,7 +240,7 @@ def main(**kwargs: Any) -> None:
         logger.info("Starting server")
         uvicorn.run(
             "mcp_optimizer.server:starlette_app",
-            host="0.0.0.0",
+            host="0.0.0.0",  # nosec B104 - Intentionally bind to all interfaces for server accessibility
             port=config.mcp_port,
             log_config=logging_dict,
             reload=config.reload_server,

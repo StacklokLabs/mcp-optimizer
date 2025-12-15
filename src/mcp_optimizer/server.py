@@ -83,7 +83,7 @@ class McpInstallationError(McpOptimizerError):
 
 
 # Initialize FastMCP - port will be overridden during startup
-mcp = FastMCP(name="mcp-optimizer", host="0.0.0.0", port=9900)
+mcp = FastMCP(name="mcp-optimizer", host="0.0.0.0", port=9900)  # nosec B104 - Intentionally bind to all interfaces for server accessibility
 
 # Global instances - will be initialized with proper config values
 embedding_manager: EmbeddingManager | None = None

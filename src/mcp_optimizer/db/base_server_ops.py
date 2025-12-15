@@ -114,7 +114,7 @@ class BaseServerOps(ABC):
         Raises:
             DbNotFoundError: If server not found
         """
-        query = f"SELECT * FROM {self.server_table_name} WHERE id = :id"
+        query = f"SELECT * FROM {self.server_table_name} WHERE id = :id"  # nosec B608 - Table name is code-controlled, params are safe
         results = await self.db.execute_query(query, {"id": server_id}, conn=conn)
         if not results:
             raise DbNotFoundError(
@@ -146,7 +146,7 @@ class BaseServerOps(ABC):
         Raises:
             DbNotFoundError: If server not found
         """
-        query = f"SELECT * FROM {self.server_table_name} WHERE name = :name"
+        query = f"SELECT * FROM {self.server_table_name} WHERE name = :name"  # nosec B608 - Table name is code-controlled, params are safe
         results = await self.db.execute_query(query, {"name": name}, conn=conn)
         if not results:
             raise DbNotFoundError(
@@ -196,7 +196,7 @@ class BaseServerOps(ABC):
             f'"{field}" = :{field}' if field == "group" else f"{field} = :{field}"
             for field in update_fields.keys()
         ]
-        query = f"UPDATE {self.server_table_name} SET {', '.join(set_clauses)} WHERE id = :id"
+        query = f"UPDATE {self.server_table_name} SET {', '.join(set_clauses)} WHERE id = :id"  # nosec B608 - Table name is code-controlled, params are safe
 
         # Add server_id to params
         params = update_fields.copy()
@@ -225,7 +225,7 @@ class BaseServerOps(ABC):
             conn: Optional connection
             **kwargs: Additional subclass-specific parameters
         """
-        query = f"DELETE FROM {self.server_table_name} WHERE id = :id"
+        query = f"DELETE FROM {self.server_table_name} WHERE id = :id"  # nosec B608 - Table name is code-controlled, params are safe
         await self.db.execute_non_query(query, {"id": server_id}, conn=conn)
         logger.info(f"Deleted {self.server_table_name} server", server_id=server_id)
 
@@ -271,7 +271,7 @@ class BaseServerOps(ABC):
         {where_sql}
         ORDER BY created_at DESC
         {limit_sql}
-        """
+        """  # nosec B608 - Table name is code-controlled, params are safe
 
         results = await self.db.execute_query(query, params, conn=conn)
         servers = []
@@ -301,7 +301,7 @@ class BaseServerOps(ABC):
         """
         if server_id is not None:
             # Sync specific server
-            delete_query = f"DELETE FROM {self.vector_table_name} WHERE server_id = :server_id"
+            delete_query = f"DELETE FROM {self.vector_table_name} WHERE server_id = :server_id"  # nosec B608 - Table name is code-controlled, params are safe
             await self.db.execute_non_query(delete_query, {"server_id": server_id}, conn=conn)
 
             # Get server and insert if it has embedding
@@ -310,7 +310,7 @@ class BaseServerOps(ABC):
                 insert_query = f"""
                 INSERT INTO {self.vector_table_name} (server_id, embedding)
                 VALUES (:server_id, :embedding)
-                """
+                """  # nosec B608 - Table name is code-controlled, params are safe
                 params = {
                     "server_id": server_id,
                     "embedding": server.server_embedding.tobytes(),
@@ -319,14 +319,14 @@ class BaseServerOps(ABC):
                 logger.debug(f"Synced {self.vector_table_name} server vector", server_id=server_id)
         else:
             # Sync all servers - rebuild entire virtual table
-            delete_all_query = f"DELETE FROM {self.vector_table_name}"
+            delete_all_query = f"DELETE FROM {self.vector_table_name}"  # nosec B608 - Table name is code-controlled, params are safe
             await self.db.execute_non_query(delete_all_query, {}, conn=conn)
 
             # Get all servers with embeddings
             query = f"""
             SELECT id, server_embedding FROM {self.server_table_name}
             WHERE server_embedding IS NOT NULL
-            """
+            """  # nosec B608 - Table name is code-controlled, params are safe
             results = await self.db.execute_query(query, {}, conn=conn)
 
             # Batch insert
@@ -336,7 +336,7 @@ class BaseServerOps(ABC):
                 insert_query = f"""
                 INSERT INTO {self.vector_table_name} (server_id, embedding)
                 VALUES (:server_id, :embedding)
-                """
+                """  # nosec B608 - Table name is code-controlled, params are safe
                 params = {
                     "server_id": server_id_val,
                     "embedding": embedding_bytes,
@@ -393,7 +393,7 @@ class BaseServerOps(ABC):
         {group_filter}
         AND k = :limit
         ORDER BY sv.distance
-        """
+        """  # nosec B608 - Table names are code-controlled, params are safe
 
         # Add group parameters
         if allowed_groups:
@@ -435,7 +435,7 @@ class BaseServerOps(ABC):
         SELECT * FROM {self.server_table_name}
         WHERE id IN ({placeholders})
         ORDER BY created_at
-        """
+        """  # nosec B608 - Table name is code-controlled, params are safe
 
         params_details = {f"id{i}": server_id for i, server_id in enumerate(server_ids_filtered)}
         server_results = await self.db.execute_query(details_query, params_details, conn=conn)

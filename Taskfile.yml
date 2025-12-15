@@ -46,8 +46,8 @@ tasks:
   security:
     desc: Run security scanning
     cmds:
-      # Note: safety tool has compatibility issues with current environment
-      # - uv run safety check --save-json safety-report.json || true
+      - uv run bandit -r src/
+      - uv run pip-audit
       - uv run bandit -r src/ -f json -o bandit-report.json || true
       - uv run pip-audit --format=json --output=pip-audit-report.json || true
     deps:

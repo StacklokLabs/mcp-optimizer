@@ -176,7 +176,7 @@ class BaseToolOps(ABC):
         Raises:
             DbNotFoundError: If tool not found
         """
-        query = f"SELECT * FROM {self.tool_table_name} WHERE id = :id"
+        query = f"SELECT * FROM {self.tool_table_name} WHERE id = :id"  # nosec B608 - Table name is code-controlled, params are safe
         results = await self.db.execute_query(query, {"id": tool_id}, conn=conn)
         if not results:
             raise DbNotFoundError(f"Tool with ID {tool_id} not found in {self.tool_table_name}.")
@@ -215,7 +215,7 @@ class BaseToolOps(ABC):
         JOIN {self.server_table_name} s ON t.mcpserver_id = s.id
         WHERE s.name = :server_name
         AND json_extract(t.details, '$.name') = :name
-        """
+        """  # nosec B608 - Table names are code-controlled, params are safe
         results = await self.db.execute_query(
             query, {"server_name": server_name, "name": name}, conn=conn
         )
@@ -253,7 +253,7 @@ class BaseToolOps(ABC):
         SELECT * FROM {self.tool_table_name}
         WHERE mcpserver_id = :server_id
         ORDER BY json_extract(details, '$.name') ASC
-        """
+        """  # nosec B608 - Table name is code-controlled, params are safe
         results = await self.db.execute_query(query, {"server_id": server_id}, conn=conn)
 
         tools = []
@@ -305,7 +305,7 @@ class BaseToolOps(ABC):
         {status_filter}
         {group_filter}
         ORDER BY s.name, t.created_at
-        """
+        """  # nosec B608 - Table names are code-controlled, params are safe
 
         params: dict[str, Any] = {}
         if server_statuses:
@@ -375,7 +375,7 @@ class BaseToolOps(ABC):
         # Build dynamic SET clause from validated fields
         update_fields = tool_update_details.get_update_fields()
         set_clauses = [f"{field} = :{field}" for field in update_fields.keys()]
-        query = f"UPDATE {self.tool_table_name} SET {', '.join(set_clauses)} WHERE id = :id"
+        query = f"UPDATE {self.tool_table_name} SET {', '.join(set_clauses)} WHERE id = :id"  # nosec B608 - Table name is code-controlled, params are safe
 
         # Add tool_id to params
         params = update_fields.copy()
@@ -398,7 +398,7 @@ class BaseToolOps(ABC):
             tool_id: Tool UUID
             conn: Optional connection
         """
-        query = f"DELETE FROM {self.tool_table_name} WHERE id = :id"
+        query = f"DELETE FROM {self.tool_table_name} WHERE id = :id"  # nosec B608 - Table name is code-controlled, params are safe
         await self.db.execute_non_query(query, {"id": tool_id}, conn=conn)
         logger.debug(f"Deleted {self.tool_table_name} tool", tool_id=tool_id)
 
@@ -416,13 +416,13 @@ class BaseToolOps(ABC):
         """
         # First get count of tools to be deleted
         count_query = (
-            f"SELECT COUNT(*) as count FROM {self.tool_table_name} WHERE mcpserver_id = :server_id"
+            f"SELECT COUNT(*) as count FROM {self.tool_table_name} WHERE mcpserver_id = :server_id"  # nosec B608 - Table name is code-controlled, params are safe
         )
         results = await self.db.execute_query(count_query, {"server_id": server_id}, conn=conn)
         count = results[0]._mapping["count"] if results else 0
 
         # Delete the tools
-        query = f"DELETE FROM {self.tool_table_name} WHERE mcpserver_id = :server_id"
+        query = f"DELETE FROM {self.tool_table_name} WHERE mcpserver_id = :server_id"  # nosec B608 - Table name is code-controlled, params are safe
         await self.db.execute_non_query(query, {"server_id": server_id}, conn=conn)
         logger.debug(
             f"Deleted {count} tools from {self.tool_table_name}",
@@ -450,7 +450,7 @@ class BaseToolOps(ABC):
 
         if tool_id is not None:
             # Sync specific tool
-            delete_query = f"DELETE FROM {self.vector_table_name} WHERE tool_id = :tool_id"
+            delete_query = f"DELETE FROM {self.vector_table_name} WHERE tool_id = :tool_id"  # nosec B608 - Table name is code-controlled, params are safe
             await self.db.execute_non_query(delete_query, {"tool_id": tool_id}, conn=conn)
 
             # Get tool and check if it has embedding and passes status filter
@@ -459,7 +459,7 @@ class BaseToolOps(ABC):
                 # Check if parent server passes status filter
                 if status_filter:
                     server_query = (
-                        f"SELECT status FROM {self.server_table_name} WHERE id = :server_id"
+                        f"SELECT status FROM {self.server_table_name} WHERE id = :server_id"  # nosec B608 - Table name is code-controlled, params are safe
                     )
                     server_result = await self.db.execute_query(
                         server_query, {"server_id": tool.mcpserver_id}, conn=conn
@@ -470,7 +470,7 @@ class BaseToolOps(ABC):
                 insert_query = f"""
                 INSERT INTO {self.vector_table_name} (tool_id, embedding)
                 VALUES (:tool_id, :embedding)
-                """
+                """  # nosec B608 - Table name is code-controlled, params are safe
                 params = {
                     "tool_id": tool_id,
                     "embedding": tool.details_embedding.tobytes(),
@@ -479,7 +479,7 @@ class BaseToolOps(ABC):
                 logger.debug(f"Synced {self.vector_table_name} tool vector", tool_id=tool_id)
         else:
             # Sync all tools - rebuild entire virtual table
-            delete_all_query = f"DELETE FROM {self.vector_table_name}"
+            delete_all_query = f"DELETE FROM {self.vector_table_name}"  # nosec B608 - Table name is code-controlled, params are safe
             await self.db.execute_non_query(delete_all_query, {}, conn=conn)
 
             # Bulk insert using INSERT..SELECT pattern with optional status filtering
@@ -495,7 +495,7 @@ class BaseToolOps(ABC):
                 JOIN {self.server_table_name} s ON t.mcpserver_id = s.id
                 WHERE s.status = :status
                 AND t.details_embedding IS NOT NULL
-                """
+                """  # nosec B608 - Table names are code-controlled, params are safe
                 params = {"status": status_filter}
             else:
                 sync_query = f"""
@@ -507,7 +507,7 @@ class BaseToolOps(ABC):
                     t.details_embedding as embedding
                 FROM {self.tool_table_name} t
                 WHERE t.details_embedding IS NOT NULL
-                """
+                """  # nosec B608 - Table names are code-controlled, params are safe
                 params = {}
 
             await self.db.execute_non_query(sync_query, params, conn=conn)
@@ -534,7 +534,7 @@ class BaseToolOps(ABC):
 
         if tool_id is not None:
             # Sync specific tool
-            delete_query = f"DELETE FROM {self.fts_table_name} WHERE tool_id = :tool_id"
+            delete_query = f"DELETE FROM {self.fts_table_name} WHERE tool_id = :tool_id"  # nosec B608 - Table name is code-controlled, params are safe
             await self.db.execute_non_query(delete_query, {"tool_id": tool_id}, conn=conn)
 
             # Insert using JOIN to get server name, with optional status filter
@@ -551,7 +551,7 @@ class BaseToolOps(ABC):
                 FROM {self.tool_table_name} t
                 JOIN {self.server_table_name} s ON t.mcpserver_id = s.id
                 WHERE t.id = :tool_id AND s.status = :status
-                """
+                """  # nosec B608 - Table names are code-controlled, params are safe
                 params = {"tool_id": tool_id, "status": status_filter}
             else:
                 insert_query = f"""
@@ -566,14 +566,14 @@ class BaseToolOps(ABC):
                 FROM {self.tool_table_name} t
                 JOIN {self.server_table_name} s ON t.mcpserver_id = s.id
                 WHERE t.id = :tool_id
-                """
+                """  # nosec B608 - Table names are code-controlled, params are safe
                 params = {"tool_id": tool_id}
 
             await self.db.execute_non_query(insert_query, params, conn=conn)
             logger.debug(f"Synced {self.fts_table_name} tool FTS", tool_id=tool_id)
         else:
             # Sync all tools - rebuild with bulk INSERT..SELECT
-            delete_all_query = f"DELETE FROM {self.fts_table_name}"
+            delete_all_query = f"DELETE FROM {self.fts_table_name}"  # nosec B608 - Table name is code-controlled, params are safe
             await self.db.execute_non_query(delete_all_query, {}, conn=conn)
 
             # Bulk insert using INSERT..SELECT pattern with optional status filtering
@@ -590,7 +590,7 @@ class BaseToolOps(ABC):
                 FROM {self.tool_table_name} t
                 JOIN {self.server_table_name} s ON t.mcpserver_id = s.id
                 WHERE s.status = :status
-                """
+                """  # nosec B608 - Table names are code-controlled, params are safe
                 params = {"status": status_filter}
             else:
                 sync_query = f"""
@@ -604,7 +604,7 @@ class BaseToolOps(ABC):
                     COALESCE(JSON_EXTRACT(t.details, '$.description'), '') as tool_description
                 FROM {self.tool_table_name} t
                 JOIN {self.server_table_name} s ON t.mcpserver_id = s.id
-                """
+                """  # nosec B608 - Table names are code-controlled, params are safe
                 params = {}
 
             await self.db.execute_non_query(sync_query, params, conn=conn)
@@ -793,7 +793,7 @@ class BaseToolOps(ABC):
             {group_filter}
             AND k = :limit
             ORDER BY tv.distance
-            """
+            """  # nosec B608 - Table names are code-controlled, params are safe
             for i, server_id in enumerate(server_ids):
                 params[f"server_id{i}"] = server_id
         else:
@@ -809,7 +809,7 @@ class BaseToolOps(ABC):
             {group_filter}
             AND k = :limit
             ORDER BY tv.distance
-            """
+            """  # nosec B608 - Table names are code-controlled, params are safe
 
         # Add group parameters
         if allowed_groups:
@@ -890,7 +890,7 @@ class BaseToolOps(ABC):
             {group_filter}
             ORDER BY fts.rank
             LIMIT :limit
-            """
+            """  # nosec B608 - Table names are code-controlled, params are safe
             for i, server_id in enumerate(server_ids):
                 params[f"server_id{i}"] = server_id
         else:
@@ -906,7 +906,7 @@ class BaseToolOps(ABC):
             {group_filter}
             ORDER BY fts.rank
             LIMIT :limit
-            """
+            """  # nosec B608 - Table names are code-controlled, params are safe
 
         # Add group parameters
         if allowed_groups:
@@ -958,7 +958,7 @@ class BaseToolOps(ABC):
         JOIN {self.server_table_name} s ON t.mcpserver_id = s.id
         WHERE t.id IN ({placeholders})
         ORDER BY t.created_at
-        """
+        """  # nosec B608 - Table names are code-controlled, params are safe
 
         params_details = {f"id{i}": tool_id for i, tool_id in enumerate(tool_ids_filtered)}
         tool_results = await self.db.execute_query(details_query, params_details, conn=conn)

@@ -577,7 +577,7 @@ def load_config() -> MCPOptimizerConfig:
         # Skip for /tmp and /data - let SQLite handle file creation in writable locations
         if config.db_url.startswith("sqlite://"):
             db_path = Path(config.db_url.replace("sqlite://", ""))
-            if not str(db_path).startswith(("/tmp", "/data")):
+            if not str(db_path).startswith(("/tmp", "/data")):  # nosec B108 - Checking paths to skip secure setup, not insecure usage
                 _setup_secure_database_path(db_path)
             else:
                 logger.info(f"Using writable database location: {db_path}")
