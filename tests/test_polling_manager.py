@@ -74,6 +74,7 @@ def polling_manager(db_config, embedding_manager, toolhive_client):
         embedding_manager=embedding_manager,
         workload_polling_interval=0.1,  # Very fast for testing
         registry_polling_interval=0.2,  # Very fast for testing
+        startup_polling_delay=0.01,  # Very fast for testing
         toolhive_client=toolhive_client,
         mcp_timeout=10,
         registry_ingestion_batch_size=5,
@@ -91,6 +92,7 @@ class TestPollingManager:
         """Test that PollingManager initializes correctly."""
         assert polling_manager.workload_polling_interval == 0.1
         assert polling_manager.registry_polling_interval == 0.2
+        assert polling_manager.startup_polling_delay == 0.01
         assert polling_manager.toolhive_client.thv_host == "localhost"
         # Port discovery is now lazy, so thv_port will be None until connection is established
         assert polling_manager.toolhive_client.thv_port is None
@@ -198,9 +200,14 @@ class TestPollingManager:
                 # Second call succeeds - no need to return anything
                 return
 
+        async def mock_registry_loop():
+            # Set the registry startup complete event so workload polling can proceed
+            if polling_manager._registry_startup_complete:
+                polling_manager._registry_startup_complete.set()
+
         with (
             patch.object(polling_manager, "_poll_workloads", side_effect=mock_poll_workloads),
-            patch.object(polling_manager, "_registry_polling_loop", new_callable=AsyncMock),
+            patch.object(polling_manager, "_registry_polling_loop", side_effect=mock_registry_loop),
         ):
             # Start polling
             await polling_manager.start_polling()
