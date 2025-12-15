@@ -171,9 +171,9 @@ jobs:
         run: |
           mkdir -p /tmp/mcp-tef-results
 
-          # Get MCP optimizer URL for Docker access (rewrite localhost to host.docker.internal)
+          # Get MCP optimizer URL for Docker access (rewrite localhost to 172.17.0.1)
           MCP_SERVER_URL=${{ steps.get-url.outputs.MCP_OPTIMIZER_URL }}
-          MCP_SERVER_URL=$(echo "${MCP_SERVER_URL}" | sed 's/127\.0\.0\.1/host.docker.internal/g')
+          MCP_SERVER_URL=$(echo "${MCP_SERVER_URL}" | sed 's/127\.0\.0\.1/172\.17\.0\.1/g')
           echo "MCP Server URL for mcp-tef: ${MCP_SERVER_URL}"
 
           # Create test case for time query using mcp-optimizer
