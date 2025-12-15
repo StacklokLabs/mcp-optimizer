@@ -1,10 +1,9 @@
 import time
 from contextlib import asynccontextmanager
-from typing import cast
 
 import structlog
 from mcp.server.fastmcp import FastMCP
-from mcp.types import CallToolResult, ListToolsResult, TextContent
+from mcp.types import CallToolResult, TextContent
 from mcp.types import Tool as McpTool
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -370,7 +369,7 @@ async def find_tool(tool_description: str, tool_keywords: str) -> dict:
         raise ToolDiscoveryError(f"Tool discovery failed: {e}") from e
 
 
-async def list_tools() -> ListToolsResult:
+async def list_tools() -> list[ToolWithServer]:
     """
     List all available tools across all MCP servers.
 
@@ -380,7 +379,7 @@ async def list_tools() -> ListToolsResult:
     - Get an overview of all capabilities without filtering
 
     Returns:
-        ListToolsResult: All available tools, including:
+        list[ToolWithServer]: All available tools, including:
                         - Tool names and descriptions
                         - Server names (in the mcp_server_name field)
                         - Required parameters and schemas
@@ -388,7 +387,7 @@ async def list_tools() -> ListToolsResult:
     """
     if embedding_manager is None or _config is None or workload_tool_ops is None:
         logger.error("Server components not initialized - returning empty tool list")
-        return ListToolsResult(tools=[])
+        return []
 
     try:
         async with _performance_timer("list all tools"):
@@ -406,7 +405,7 @@ async def list_tools() -> ListToolsResult:
             async with _performance_timer("tool conversion"):
                 all_tools = _tool_conversion(all_db_tools)
 
-        return ListToolsResult(tools=cast(list[McpTool], all_tools))
+        return all_tools
     except Exception as e:
         # Log the error but return empty list instead of raising
         # This ensures the client always gets a valid response
@@ -415,10 +414,10 @@ async def list_tools() -> ListToolsResult:
             error=str(e),
             error_type=type(e).__name__,
         )
-        return ListToolsResult(tools=[])
+        return []
 
 
-async def search_registry(tool_description: str, tool_keywords: str) -> ListToolsResult:
+async def search_registry(tool_description: str, tool_keywords: str) -> list[ToolWithServer]:
     """
     Search for tools in the ToolHive registry when find_tool returns no results
     or irrelevant results.
@@ -439,7 +438,7 @@ async def search_registry(tool_description: str, tool_keywords: str) -> ListTool
                       (e.g., "code analysis", "aws cloud management")
 
     Returns:
-        ListToolsResult with tools from registry servers (status=registry).
+        list[ToolWithServer]: Tools from registry servers (status=registry).
         Each tool's mcp_server_name field contains the server to install.
 
     Example workflow:
@@ -478,7 +477,7 @@ async def search_registry(tool_description: str, tool_keywords: str) -> ListTool
             async with _performance_timer("tool conversion"):
                 matching_tools = _tool_conversion(similar_db_tools)
 
-        return ListToolsResult(tools=cast(list[McpTool], matching_tools))
+        return matching_tools
     except ValueError as e:
         logger.error(f"Invalid registry search request or embedding error: {e}")
         raise ToolDiscoveryError(f"Invalid registry search request: {e}") from e

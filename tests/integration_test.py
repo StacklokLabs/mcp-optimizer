@@ -25,10 +25,10 @@ from typing import NamedTuple
 
 import structlog
 from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult
 from mcp.types import Tool as McpTool
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
 logger = structlog.get_logger(__name__)
 
@@ -38,12 +38,7 @@ class ToolWithServer(McpTool):
 
     model_config = ConfigDict(extra="allow")
     mcp_server_name: str
-
-
-class ListToolsWithServerResult(BaseModel):
-    """ListToolsResult that uses ToolWithServer instead of Tool."""
-
-    tools: list[ToolWithServer]
+    name: str
 
 
 class McpToolTuple(NamedTuple):
@@ -51,39 +46,46 @@ class McpToolTuple(NamedTuple):
     mcp_server_name: str
 
 
-def _validate_tool_result(tool_call_result: CallToolResult) -> str | None:
+def _validate_tool_result(tool_call_result: CallToolResult) -> list[str] | None:
     """Parse the tool result text into a dictionary."""
     if not tool_call_result.content:
         logger.error(f"Empty content in tool result: {tool_call_result}")
         return None
 
     try:
-        return tool_call_result.content[0].text
+        return [text_content.text for text_content in tool_call_result.content]
     except Exception:
         logger.error(f"Failed to parse tool result: {tool_call_result}", exc_info=True)
         return None
 
 
-def _get_list_tools(tool_call_result: CallToolResult) -> ListToolsWithServerResult | None:
+def _get_list_tools(tool_call_result: CallToolResult) -> list[ToolWithServer] | None:
     """Parse the tool result text into a ListToolsWithServerResult."""
     result = _validate_tool_result(tool_call_result)
     if result is None:
         return None
 
+    if len(result) == 1:
+        result_list = json.loads(result[0]).get("tools", [])
+    else:
+        result_list = [json.loads(r) for r in result]
+        print("No 'tools' key found in result_dict; using entire dict as list.")
+        print(type(result_list))
+
     try:
-        return ListToolsWithServerResult.model_validate_json(result)
+        return [ToolWithServer.model_validate(tool) for tool in result_list]
     except Exception:
-        logger.error(f"Failed to parse list_tools result: {result}", exc_info=True)
+        logger.error(f"Failed to parse list_tools result: {result_list}", exc_info=True)
         return None
 
 
 def _check_expected_tools(
-    list_tools: ListToolsWithServerResult, expected_tools: set[McpToolTuple]
+    list_tools: list[ToolWithServer], expected_tools: set[McpToolTuple]
 ) -> bool:
     """
     Check if the expected tools are present in the ListToolsWithServerResult.
     """
-    found_tools = {McpToolTuple(tool.name, tool.mcp_server_name) for tool in list_tools.tools}
+    found_tools = {McpToolTuple(tool.name, tool.mcp_server_name) for tool in list_tools}
 
     if not expected_tools.issubset(found_tools):
         logger.error(f"Expected tools not found. Expected: {expected_tools}, Found: {found_tools}")
@@ -144,7 +146,7 @@ def _is_call_tool_result_valid(tool_call_result: CallToolResult) -> bool:
 
     try:
         # The result_text is the actual tool response JSON, not a CallToolResult
-        time_call_tool = json.loads(result_text)
+        time_call_tool = json.loads(result_text[0])
         if "timezone" not in time_call_tool or "datetime" not in time_call_tool:
             logger.error(
                 f"'timezone' or 'datetime' key not found in call_tool result: {time_call_tool}"
@@ -164,7 +166,7 @@ async def test_mcp_optimizer_integration():
     logger.info(f"Connecting to mcp-optimizer server at {mcp_optimizer_url}")
 
     try:
-        async with streamablehttp_client(mcp_optimizer_url) as (read_stream, write_stream, _):
+        async with streamable_http_client(mcp_optimizer_url) as (read_stream, write_stream, _):
             async with ClientSession(read_stream, write_stream) as session:
                 await session.initialize()
                 # Connection test
