@@ -161,7 +161,7 @@ jobs:
         run: |
           mtef deploy \
             --name mcp-tef \
-            --port 8000 \
+            --port 8088 \
             --env OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }} \
             --env LOG_LEVEL=INFO
 
@@ -179,7 +179,6 @@ jobs:
           echo "Creating test case..."
           set +e
           TEST_CASE_OUTPUT=$(mtef test-case create \
-            --url "https://mcp-tef:8000" \
             --name "MCP Optimizer Time Query" \
             --query "Tell me the current time in Tokyo" \
             --servers "${MCP_SERVER_URL}" \
