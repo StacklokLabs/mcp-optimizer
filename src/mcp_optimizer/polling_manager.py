@@ -602,8 +602,8 @@ class PollingManager:
                     ]
                     if running_workloads:
                         logger.info(
-                            "Targeted polling succeeded - workload found",
-                            server_name=running_workloads[0].name,
+                            "Targeted polling succeeded - workloads found",
+                            server_names=[w.name for w in running_workloads],
                             attempts=poll_count,
                             elapsed_seconds=poll_count,
                         )
