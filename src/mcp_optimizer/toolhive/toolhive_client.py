@@ -646,9 +646,7 @@ class ToolhiveClient:
             return []
 
         running_mcp_workloads = [
-            workload
-            for workload in workload_list.workloads
-            if (workload.status == "running" and workload.tool_type == "mcp")
+            workload for workload in workload_list.workloads if workload.status == "running"
         ]
 
         logger.info(

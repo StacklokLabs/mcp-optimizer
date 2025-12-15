@@ -333,9 +333,7 @@ class K8sClient:
         all_workloads = await self.list_mcpservers(all_namespaces=True)
 
         running_mcp_workloads = [
-            workload
-            for workload in all_workloads
-            if workload.status == "running" and workload.tool_type in ["mcp", "remote"]
+            workload for workload in all_workloads if workload.status == "running"
         ]
 
         logger.info(
