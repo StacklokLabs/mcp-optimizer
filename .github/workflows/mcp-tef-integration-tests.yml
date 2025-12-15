@@ -110,10 +110,10 @@ jobs:
 
           cat > /tmp/check_ingestion.py << 'EOF'
           import asyncio
+          import json
           import sys
           from mcp import ClientSession
           from mcp.client.streamable_http import streamablehttp_client
-          from mcp.types import ListToolsResult
 
           async def check():
               try:
@@ -123,8 +123,9 @@ jobs:
                           result = await session.call_tool("list_tools", {})
                           result_text = result.content[0].text if result.content else None
                           if result_text:
-                              list_result = ListToolsResult.model_validate_json(result_text)
-                              if len(list_result.tools) > 0:
+                              print(f"'list_tools' tool call result: {result_text}")
+                              list_result = json.loads(result_text)
+                              if len(list_result["tools"]) > 0:
                                   print("Workload ingestion completed - server tools found!")
                                   return 0
                           return 1
