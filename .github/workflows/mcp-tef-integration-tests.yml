@@ -160,6 +160,7 @@ jobs:
       - name: Deploy mcp-tef server
         run: |
           mtef deploy \
+            --name mcp-tef \
             --port 8000 \
             --env OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }} \
             --env LOG_LEVEL=INFO
