@@ -322,6 +322,9 @@ jobs:
       - name: Capture container logs
         if: always()
         run: |
+          echo "=== mcp-tef container logs ==="
+          docker logs mcp-tef 2>&1 | tail -1000 || true
+          echo ""
           echo "=== mcp-optimizer container logs ==="
           docker logs mcp-optimizer 2>&1 | tail -1000 || true
           echo ""
