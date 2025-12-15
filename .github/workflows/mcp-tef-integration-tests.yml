@@ -162,9 +162,7 @@ jobs:
           mtef deploy \
             --port 8000 \
             --env OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }} \
-            --env LOG_LEVEL=INFO \
-            --health-check \
-            --health-timeout 60
+            --env LOG_LEVEL=INFO
 
       - name: Create test case and run alignment test
         id: test-run
