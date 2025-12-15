@@ -41,11 +41,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Configure git credentials for private repo access
-          echo "https://x-access-token:${GH_TOKEN}@github.com" > ~/.git-credentials
-          git config --global credential.helper store
-          uv tool install "mtef @ git+https://github.com/StacklokLabs/mcp-tef.git#subdirectory=cli"
-          rm -f ~/.git-credentials
+          uv tool install "mcp-tef-cli @ git+https://github.com/StacklokLabs/mcp-tef.git@cli-v0.0.3#subdirectory=cli"
 
       - name: Install ToolHive
         uses: StacklokLabs/toolhive-actions/install@6a095f99aa2fd6cd92cf0bb94bdf509b99820c06 # v0.0.3
