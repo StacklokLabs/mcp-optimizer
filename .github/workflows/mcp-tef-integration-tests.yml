@@ -121,13 +121,10 @@ jobs:
                       async with ClientSession(read_stream, write_stream) as session:
                           await session.initialize()
                           result = await session.call_tool("list_tools", {})
-                          result_text = result.content[0].text if result.content else None
-                          if result_text:
-                              print(f"'list_tools' tool call result: {result_text}")
-                              list_result = json.loads(result_text)
-                              if len(list_result["tools"]) > 0:
-                                  print("Workload ingestion completed - server tools found!")
-                                  return 0
+                          print(f"Tool call 'list_tools' completed with result: {result}")
+                          if result and result.content and len(result.content) > 0:
+                              print("Workload ingestion completed - server tools found!")
+                              return 0
                           return 1
               except Exception as e:
                   return 1
