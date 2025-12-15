@@ -17,7 +17,7 @@ from mcp_optimizer.toolhive.api_models.core import Workload
 logger = structlog.get_logger(__name__)
 
 # In-cluster service account paths
-SERVICE_ACCOUNT_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+SERVICE_ACCOUNT_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"  # nosec B105 - Standard Kubernetes service account path, not a hardcoded password
 SERVICE_ACCOUNT_CA_CERT_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 SERVICE_ACCOUNT_NAMESPACE_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
@@ -366,8 +366,8 @@ def get_k8s_namespace() -> str:
             namespace = namespace_path.read_text().strip()
             if namespace:
                 return namespace
-    except Exception:
-        pass
+    except Exception as e:  # nosec B110 - Intentional fallback to default namespace
+        logger.debug("Failed to read namespace from service account, using default", error=str(e))
 
     # Default to 'default' namespace
     return "default"

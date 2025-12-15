@@ -157,7 +157,7 @@ class WorkloadToolOps(BaseToolOps):
         JOIN mcpservers_workload s ON t.mcpserver_id = s.id
         WHERE s.status = :status
         {group_filter}
-        """
+        """  # nosec B608 - Table names are code-controlled, params are safe
 
         results = await self.db.execute_query(query, params, conn=conn)
         total_tokens = results[0]._mapping["total_tokens"] if results else 0

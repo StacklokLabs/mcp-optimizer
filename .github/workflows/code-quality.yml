@@ -39,7 +39,6 @@ jobs:
 
       - name: Run Security Scanning
         run: task security
-        continue-on-error: true  # Don't fail the build on security issues, but report them
 
       - name: Generate SBOM
         run: task sbom
