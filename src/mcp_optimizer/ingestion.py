@@ -6,7 +6,7 @@ from Toolhive into the MCP Optimizer database with semantic embeddings.
 """
 
 import asyncio
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import structlog
@@ -62,6 +62,15 @@ class ToolHiveUnavailable(Exception):
     """
 
     pass
+
+
+class SeparatedWorkloads(NamedTuple):
+    """Named tuple for separated workloads."""
+
+    container_workloads: list[Workload]
+    remote_workloads: list[Workload]
+    all_workloads: list[Workload]
+    workload_details: list[str]
 
 
 class IngestionService:
@@ -1425,6 +1434,37 @@ class IngestionService:
 
         return deleted_count
 
+    def _validate_and_separate_workloads(
+        self, workloads: list[Workload], source: str
+    ) -> SeparatedWorkloads:
+        """Validate remote field and filter out workloads with remote=None.
+
+        Args:
+            workloads: List of workloads to validate
+            source: Source name for logging (e.g., "Docker", "Kubernetes")
+
+        Returns:
+            List of valid workloads with remote field properly set
+        """
+        container_workloads = []
+        remote_workloads = []
+        workload_details = []
+        for workload in workloads:
+            # workload.remote == None for non-remote workloads
+            is_remote = workload.remote or False
+            if is_remote:
+                remote_workloads.append(workload)
+            else:
+                container_workloads.append(workload)
+
+            workload_details.append(f"{workload.name} (url: {workload.url or 'MISSING'})")
+        return SeparatedWorkloads(
+            container_workloads=container_workloads,
+            remote_workloads=remote_workloads,
+            all_workloads=workloads,
+            workload_details=workload_details,
+        )
+
     async def _get_all_workloads_from_docker(
         self, toolhive_client: ToolhiveClient
     ) -> list[Workload]:
@@ -1434,35 +1474,31 @@ class IngestionService:
         Returns:
             List of all running MCP workloads
         """
-        all_workloads = []
         try:
             async with toolhive_client as client:
                 # Get ALL workloads (running and stopped) to detect deletions
                 all_workloads_response = await client.list_workloads(all_workloads=True)
-                all_workloads = [
+                running_workloads = [
                     workload
                     for workload in (all_workloads_response.workloads or [])
-                    if workload.status == "running" and workload.tool_type in ["mcp", "remote"]
+                    if workload.status == "running"
                 ]
-                total_workloads = len(all_workloads)
 
-                # Count container vs remote workloads for logging
-                container_workloads = [w for w in all_workloads if w.tool_type == "mcp"]
-                remote_workloads = [w for w in all_workloads if w.tool_type == "remote"]
-
-                # Log workload details including URLs for debugging
-                workload_details = [f"{w.name} (url: {w.url or 'MISSING'})" for w in all_workloads]
+                # Validate remote field and filter out workloads with remote=None
+                separated_workloads = self._validate_and_separate_workloads(
+                    running_workloads, "Docker"
+                )
 
                 logger.info(
                     "Found running workloads from Docker",
-                    container_workloads=len(container_workloads),
-                    container_names=[w.name for w in container_workloads],
-                    remote_workloads=len(remote_workloads),
-                    remote_names=[w.name for w in remote_workloads],
-                    total_workloads=total_workloads,
-                    workload_details=workload_details,
+                    container_workloads=len(separated_workloads.container_workloads),
+                    container_names=[w.name for w in separated_workloads.container_workloads],
+                    remote_workloads=len(separated_workloads.remote_workloads),
+                    remote_names=[w.name for w in separated_workloads.remote_workloads],
+                    total_workloads=len(separated_workloads.all_workloads),
+                    workload_details=separated_workloads.workload_details,
                 )
-                return all_workloads
+                return separated_workloads.all_workloads
         except Exception as e:
             # If ToolHive is unavailable, raise ToolHiveUnavailable exception
             if isinstance(e, (ToolhiveConnectionError, ToolhiveScanError, ConnectionError)):
@@ -1489,8 +1525,6 @@ class IngestionService:
         Returns:
             Tuple of (list of all running MCP workloads, registry or None if fetch failed)
         """
-        all_workloads = []
-
         # Fetch workloads from Kubernetes
         try:
             k8s_client = K8sClient(
@@ -1499,35 +1533,30 @@ class IngestionService:
                 timeout=self.mcp_timeout,
             )
             async with k8s_client:
-                all_workloads = await k8s_client.list_mcpservers(
+                workloads_from_k8s = await k8s_client.list_mcpservers(
                     all_namespaces=self.k8s_all_namespaces
                 )
 
                 # Filter to only running workloads
-                all_workloads = [
-                    workload
-                    for workload in all_workloads
-                    if workload.status == "running" and workload.tool_type in ["mcp", "remote"]
+                running_workloads = [
+                    workload for workload in workloads_from_k8s if workload.status == "running"
                 ]
-                total_workloads = len(all_workloads)
 
-                # Count container vs remote workloads for logging
-                container_workloads = [w for w in all_workloads if w.tool_type == "mcp"]
-                remote_workloads = [w for w in all_workloads if w.tool_type == "remote"]
-
-                # Log workload details including URLs for debugging
-                workload_details = [f"{w.name} (url: {w.url or 'MISSING'})" for w in all_workloads]
+                # Validate remote field and filter out workloads with remote=None
+                separated_workloads = self._validate_and_separate_workloads(
+                    running_workloads, "Kubernetes"
+                )
 
                 logger.info(
                     "Found running workloads from Kubernetes",
-                    container_workloads=len(container_workloads),
-                    container_names=[w.name for w in container_workloads],
-                    remote_workloads=len(remote_workloads),
-                    remote_names=[w.name for w in remote_workloads],
-                    total_workloads=total_workloads,
-                    workload_details=workload_details,
+                    container_workloads=len(separated_workloads.container_workloads),
+                    container_names=[w.name for w in separated_workloads.container_workloads],
+                    remote_workloads=len(separated_workloads.remote_workloads),
+                    remote_names=[w.name for w in separated_workloads.remote_workloads],
+                    total_workloads=len(separated_workloads.all_workloads),
+                    workload_details=separated_workloads.workload_details,
                 )
-                return all_workloads
+                return separated_workloads.all_workloads
         except Exception as e:
             logger.exception("Failed to connect to Toolhive or fetch workloads")
             raise WorkloadRetrievalError("Failed to fetch workloads from ToolHive") from e
@@ -1698,7 +1727,7 @@ class IngestionService:
                             logger.exception(
                                 f"Failed to process workload '{workload.name}' in transaction",
                                 workload_name=workload.name,
-                                workload_type=workload.tool_type,
+                                workload_remote=workload.remote or False,
                                 workload_url=workload.url,
                                 workload_package=workload.package,
                                 error=str(result),
@@ -1710,7 +1739,7 @@ class IngestionService:
                             logger.debug(
                                 "Successfully processed workload",
                                 workload_name=workload.name,
-                                workload_type=workload.tool_type,
+                                workload_remote=workload.remote or False,
                                 tools_count=result["tools_count"],
                             )
                         else:
@@ -1718,7 +1747,7 @@ class IngestionService:
                             logger.warning(
                                 "Failed to process workload - see details above",
                                 workload_name=workload.name,
-                                workload_type=workload.tool_type,
+                                workload_remote=workload.remote or False,
                                 workload_url=workload.url,
                                 error=result.get("error"),
                             )
