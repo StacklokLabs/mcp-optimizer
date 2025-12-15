@@ -164,6 +164,7 @@ jobs:
             --port 8088 \
             --env OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }} \
             --env LOG_LEVEL=INFO
+          sleep 20
 
       - name: Create test case and run alignment test
         id: test-run
