@@ -328,10 +328,7 @@ jobs:
         if: always()
         run: |
           echo "=== mcp-optimizer container logs ==="
-          docker logs mcp-optimizer 2>&1 | tail -100 || true
-          echo ""
-          echo "=== mcp-tef container logs ==="
-          docker logs mcp-tef 2>&1 | tail -100 || true
+          docker logs mcp-optimizer 2>&1 | tail -1000 || true
           echo ""
           echo "=== time container logs ==="
           docker logs time 2>&1 | tail -50 || true
