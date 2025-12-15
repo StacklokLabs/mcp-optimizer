@@ -1,6 +1,8 @@
+from typing import cast
+
 import structlog
 
-from mcp_optimizer.db.models import McpStatus, RegistryServer
+from mcp_optimizer.db.models import McpStatus, RegistryServer, WorkloadServer
 from mcp_optimizer.db.workload_server_ops import WorkloadServerOps
 from mcp_optimizer.polling_manager import get_polling_manager
 from mcp_optimizer.toolhive.api_models.registry import ImageMetadata, RemoteServerMetadata
@@ -109,7 +111,10 @@ class McpServerInstaller:
         # Check if server already exists as a running workload
         # Try to find by package by matching the registry_server_id
         try:
-            existing_workloads = await self.workload_server_ops.list_servers()
+            existing_workloads = cast(
+                list[WorkloadServer],
+                await self.workload_server_ops.list_servers(),
+            )
             for workload in existing_workloads:
                 if (
                     workload.registry_server_id == registry_server.id

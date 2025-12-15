@@ -1,5 +1,6 @@
 import time
 from contextlib import asynccontextmanager
+from typing import cast
 
 import structlog
 from mcp.server.fastmcp import FastMCP
@@ -29,6 +30,12 @@ from mcp_optimizer.toolhive.api_models.core import Workload
 from mcp_optimizer.toolhive.toolhive_client import ToolhiveClient
 
 logger = structlog.get_logger(__name__)
+
+
+class ToolWithServer(McpTool):
+    """Extended Tool model that includes the server name for routing calls."""
+
+    mcp_server_name: str
 
 
 class McpOptimizerError(Exception):
@@ -195,7 +202,7 @@ async def _performance_timer(operation_name: str):
 
 def _tool_conversion(
     db_tools: list[WorkloadToolWithMetadata] | list[RegistryToolWithMetadata],
-) -> list[McpTool]:
+) -> list[ToolWithServer]:
     if embedding_manager is None:
         raise RuntimeError("Server components not initialized")
 
@@ -204,11 +211,12 @@ def _tool_conversion(
 
     for tool_with_metadata in db_tools:
         try:
-            mcp_tool = McpTool.model_validate(tool_with_metadata.tool.details)
-            # Set server name for calling later. mcp_tool accepts extra parameters
-            # according to its Pydantic model
-            mcp_tool.mcp_server_name = tool_with_metadata.server_name
-            matching_tools.append(mcp_tool)
+            # Convert tool details to dict and add server name
+            tool_dict = tool_with_metadata.tool.details.model_dump()
+            tool_dict["mcp_server_name"] = tool_with_metadata.server_name
+            # Create ToolWithServer which includes both tool details and server name
+            tool_with_server = ToolWithServer.model_validate(tool_dict)
+            matching_tools.append(tool_with_server)
         except Exception as e:
             # Log conversion failure but don't fail the entire operation
             conversion_error = ToolConversionError(tool_with_metadata.tool.id, e)
@@ -398,7 +406,7 @@ async def list_tools() -> ListToolsResult:
             async with _performance_timer("tool conversion"):
                 all_tools = _tool_conversion(all_db_tools)
 
-        return ListToolsResult(tools=all_tools)
+        return ListToolsResult(tools=cast(list[McpTool], all_tools))
     except Exception as e:
         # Log the error but return empty list instead of raising
         # This ensures the client always gets a valid response
@@ -470,7 +478,7 @@ async def search_registry(tool_description: str, tool_keywords: str) -> ListTool
             async with _performance_timer("tool conversion"):
                 matching_tools = _tool_conversion(similar_db_tools)
 
-        return ListToolsResult(tools=matching_tools)
+        return ListToolsResult(tools=cast(list[McpTool], matching_tools))
     except ValueError as e:
         logger.error(f"Invalid registry search request or embedding error: {e}")
         raise ToolDiscoveryError(f"Invalid registry search request: {e}") from e
