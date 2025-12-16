@@ -13,3 +13,4 @@ jobs:
   code_checks:
     name: Code Checks
     uses: ./.github/workflows/code-checks.yml
+    secrets: inherit

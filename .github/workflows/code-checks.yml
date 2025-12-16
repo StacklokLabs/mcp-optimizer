@@ -23,3 +23,8 @@ jobs:
     name: Offline Mode Tests
     uses: ./.github/workflows/offline-tests.yml
     needs: image_build
+  mcp_tef_integration_tests:
+    name: MCP TEF Integration Tests
+    uses: ./.github/workflows/mcp-tef-integration-tests.yml
+    secrets: inherit
+    needs: image_build

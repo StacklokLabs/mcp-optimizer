@@ -1,0 +1,339 @@
+name: MCP-TEF Integration Tests
+
+on:
+  workflow_call:
+    secrets:
+      OPENROUTER_API_KEY:
+        required: true
+        description: "API key for OpenRouter, used in mtef test runs"
+
+permissions:
+  contents: read
+
+jobs:
+  mcp-tef-integration-tests:
+    name: MCP-TEF Query Alignment Tests
+    runs-on: ubuntu-latest
+    # Don't block PR merge on failure
+    continue-on-error: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Build mcp-optimizer Docker image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          cache-from: type=gha
+          tags: mcp-optimizer:latest
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # v7.1.5
+        with:
+          enable-cache: true
+          python-version: '3.13'
+
+      - name: Install mtef CLI
+        run: |
+          uv tool install "mcp-tef-cli @ git+https://github.com/StacklokLabs/mcp-tef.git@cli-v0.0.3#subdirectory=cli"
+
+      - name: Install ToolHive
+        uses: StacklokLabs/toolhive-actions/install@6a095f99aa2fd6cd92cf0bb94bdf509b99820c06 # v0.0.3
+
+      - name: Run ToolHive server
+        run: |
+          thv serve --host 0.0.0.0 --port 9090 &
+          echo "Waiting for ToolHive server to start..."
+          sleep 5
+          echo "Checking ToolHive API is accessible..."
+          curl -v http://localhost:9090/api/v1beta/version || echo "Failed to connect to ToolHive API"
+
+      - name: Install MCP servers (time and fetch)
+        run: |
+          echo "Installing time MCP server..."
+          thv run time --host 0.0.0.0
+          echo "Installing fetch MCP server..."
+          thv run fetch --host 0.0.0.0
+
+      - name: Install mcp-optimizer server
+        run: >-
+          thv run mcp-optimizer:latest
+          --transport streamable-http
+          --proxy-port 8080
+          --host 0.0.0.0
+          --env TOOLHIVE_HOST=172.17.0.1
+          --env TOOLHIVE_PORT=9090
+          --env WORKLOAD_POLLING_INTERVAL=2
+          --env TOOLHIVE_SKIP_BACKOFF=1
+
+      - name: Wait for mcp-optimizer to be ready
+        run: |
+          echo "Waiting for mcp-optimizer to be ready..."
+          MAX_ATTEMPTS=180
+          ATTEMPT=0
+          READY=false
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            if docker logs mcp-optimizer 2>&1 | grep -q "Uvicorn running on "; then
+              echo "mcp-optimizer is ready!"
+              READY=true
+              break
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Waiting... (attempt $ATTEMPT/$MAX_ATTEMPTS)"
+            sleep 1
+          done
+
+          if [ "$READY" = false ]; then
+            echo "ERROR: mcp-optimizer did not become ready within 3 minutes"
+            echo "=== mcp-optimizer logs ==="
+            docker logs mcp-optimizer 2>&1 || true
+            exit 1
+          fi
+
+      - name: Install MCP SDK for ingestion check
+        run: |
+          uv venv
+          uv pip install mcp
+
+      - name: Wait for workload ingestion to complete
+        run: |
+          echo "Waiting for workload ingestion to complete..."
+          MAX_ATTEMPTS=60
+          ATTEMPT=0
+          INGESTED=false
+
+          cat > /tmp/check_ingestion.py << 'EOF'
+          import asyncio
+          import json
+          import sys
+          from mcp import ClientSession
+          from mcp.client.streamable_http import streamablehttp_client
+
+          async def check():
+              try:
+                  async with streamablehttp_client("http://localhost:8080/mcp") as (read_stream, write_stream, _):
+                      async with ClientSession(read_stream, write_stream) as session:
+                          await session.initialize()
+                          result = await session.call_tool("list_tools", {})
+                          print(f"Tool call 'list_tools' completed with result: {result}")
+                          if result and result.content and len(result.content) > 0:
+                              print("Workload ingestion completed - server tools found!")
+                              return 0
+                          return 1
+              except Exception as e:
+                  return 1
+
+          sys.exit(asyncio.run(check()))
+          EOF
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            if uv run /tmp/check_ingestion.py 2>/dev/null; then
+              echo "Workload ingestion completed!"
+              INGESTED=true
+              break
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Waiting for ingestion... (attempt $ATTEMPT/$MAX_ATTEMPTS)"
+            sleep 1
+          done
+
+          if [ "$INGESTED" = false ]; then
+            echo "ERROR: Workload ingestion did not complete within 1 minute"
+            echo "=== mcp-optimizer logs ==="
+            docker logs mcp-optimizer 2>&1 | tail -50 || true
+            exit 1
+          fi
+
+      - name: Get mcp-optimizer URL
+        id: get-url
+        run: |
+          MCP_OPTIMIZER_URL=$(thv list --format json | jq -r '.[] | select(.name == "mcp-optimizer") | .url')
+          echo "MCP_OPTIMIZER_URL=${MCP_OPTIMIZER_URL}" >> $GITHUB_OUTPUT
+          echo "mcp-optimizer URL: ${MCP_OPTIMIZER_URL}"
+
+      - name: Deploy mcp-tef server
+        run: |
+          mtef deploy \
+            --name mcp-tef \
+            --port 8088 \
+            --env OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }} \
+            --env LOG_LEVEL=INFO
+          sleep 20
+
+      - name: Create test case and run alignment test
+        id: test-run
+        run: |
+          mkdir -p /tmp/mcp-tef-results
+
+          # Get MCP optimizer URL for Docker access (rewrite localhost to 172.17.0.1)
+          MCP_SERVER_URL=${{ steps.get-url.outputs.MCP_OPTIMIZER_URL }}
+          MCP_SERVER_URL=$(echo "${MCP_SERVER_URL}" | sed 's/127\.0\.0\.1/172\.17\.0\.1/g')
+          echo "MCP Server URL for mcp-tef: ${MCP_SERVER_URL}"
+
+          # Create test case for time query using mcp-optimizer
+          echo "Creating test case..."
+          set +e
+          TEST_CASE_OUTPUT=$(mtef test-case create \
+            --name "MCP Optimizer Time Query" \
+            --query "Tell me the current time in Tokyo" \
+            --servers "${MCP_SERVER_URL}" \
+            --expected-server "${MCP_SERVER_URL}" \
+            --expected-tool "find_tool" \
+            --format json \
+            --insecure 2>&1)
+          TEST_CASE_EXIT=$?
+          set -e
+
+          echo "Test case creation output:"
+          echo "${TEST_CASE_OUTPUT}"
+
+          TEST_CASE_ID=$(echo "${TEST_CASE_OUTPUT}" | jq -r '.id // empty')
+
+          if [ -z "${TEST_CASE_ID}" ] || [ ${TEST_CASE_EXIT} -ne 0 ]; then
+            echo "ERROR: Failed to create test case"
+            echo "${TEST_CASE_OUTPUT}" > /tmp/mcp-tef-results/test-case-error.txt
+            echo "test_result=error" >> $GITHUB_OUTPUT
+            echo "test_message=Failed to create test case" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Test case ID: ${TEST_CASE_ID}"
+          echo "${TEST_CASE_OUTPUT}" > /tmp/mcp-tef-results/test-case.json
+
+          # Execute test run
+          echo "Executing test run..."
+          set +e
+          TEST_RUN_OUTPUT=$(mtef test-run execute "${TEST_CASE_ID}" \
+            --model-provider openrouter \
+            --model-name anthropic/claude-sonnet-4.5 \
+            --api-key ${{ secrets.OPENROUTER_API_KEY }} \
+            --format json \
+            --no-wait \
+            --insecure 2>&1)
+          TEST_RUN_EXIT=$?
+          set -e
+
+          echo "Test run output:"
+          echo "${TEST_RUN_OUTPUT}"
+
+          TEST_RUN_ID=$(echo "${TEST_RUN_OUTPUT}" | jq -r '.id // empty')
+
+          if [ -z "${TEST_RUN_ID}" ] || [ ${TEST_RUN_EXIT} -ne 0 ]; then
+            echo "ERROR: Failed to execute test run"
+            echo "${TEST_RUN_OUTPUT}" > /tmp/mcp-tef-results/test-run-error.txt
+            echo "test_result=error" >> $GITHUB_OUTPUT
+            echo "test_message=Failed to execute test run" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Test run ID: ${TEST_RUN_ID}"
+
+          # Poll for completion
+          echo "Polling for test run completion..."
+          POLL_INTERVAL=2
+          POLL_TIMEOUT=120
+          POLL_WAITED=0
+          STATUS="pending"
+
+          while [ "${STATUS}" = "pending" ] || [ "${STATUS}" = "running" ]; do
+            if [ ${POLL_WAITED} -ge ${POLL_TIMEOUT} ]; then
+              echo "Timeout waiting for test run to complete"
+              echo "test_result=timeout" >> $GITHUB_OUTPUT
+              echo "test_message=Test run timed out after ${POLL_TIMEOUT}s" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            sleep ${POLL_INTERVAL}
+            POLL_WAITED=$((POLL_WAITED + POLL_INTERVAL))
+
+            set +e
+            POLL_OUTPUT=$(mtef test-run get "${TEST_RUN_ID}" \
+              --format json \
+              --insecure 2>&1)
+            set -e
+            STATUS=$(echo "${POLL_OUTPUT}" | jq -r '.status // "unknown"')
+            echo "Status after ${POLL_WAITED}s: ${STATUS}"
+          done
+
+          # Save final results
+          echo "${POLL_OUTPUT}" > /tmp/mcp-tef-results/test-run-result.json
+
+          CLASSIFICATION=$(echo "${POLL_OUTPUT}" | jq -r '.classification // "unknown"')
+          echo "Final status: ${STATUS}"
+          echo "Classification: ${CLASSIFICATION}"
+
+          # Determine test result
+          if [ "${STATUS}" = "completed" ]; then
+            if [ "${CLASSIFICATION}" = "TP" ]; then
+              echo "test_result=success" >> $GITHUB_OUTPUT
+              echo "test_message=Test passed with classification: ${CLASSIFICATION}" >> $GITHUB_OUTPUT
+            else
+              echo "test_result=warning" >> $GITHUB_OUTPUT
+              echo "test_message=Test completed but classification was ${CLASSIFICATION}, expected TP" >> $GITHUB_OUTPUT
+            fi
+          else
+            ERROR_MSG=$(echo "${POLL_OUTPUT}" | jq -r '.error_message // "No error message"')
+            echo "test_result=failed" >> $GITHUB_OUTPUT
+            echo "test_message=Test failed with status: ${STATUS}. Error: ${ERROR_MSG}" >> $GITHUB_OUTPUT
+          fi
+
+          # Create summary
+          cat > /tmp/mcp-tef-results/summary.json << EOF
+          {
+            "test_case_id": "${TEST_CASE_ID}",
+            "test_run_id": "${TEST_RUN_ID}",
+            "status": "${STATUS}",
+            "classification": "${CLASSIFICATION}",
+            "mcp_server_url": "${MCP_SERVER_URL}"
+          }
+          EOF
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mcp-tef-test-results
+          path: /tmp/mcp-tef-results/
+          retention-days: 30
+
+      - name: Report test status
+        if: always()
+        run: |
+          echo "=== MCP-TEF Integration Test Results ==="
+          echo "Result: ${{ steps.test-run.outputs.test_result }}"
+          echo "Message: ${{ steps.test-run.outputs.test_message }}"
+
+          if [ -f /tmp/mcp-tef-results/summary.json ]; then
+            echo ""
+            echo "=== Summary ==="
+            cat /tmp/mcp-tef-results/summary.json | jq .
+          fi
+
+          # Warn but don't fail
+          if [ "${{ steps.test-run.outputs.test_result }}" != "success" ]; then
+            echo ""
+            echo "::warning::MCP-TEF integration test did not pass: ${{ steps.test-run.outputs.test_message }}"
+          fi
+
+      - name: Capture container logs
+        if: always()
+        run: |
+          echo "=== mcp-tef container logs ==="
+          docker logs mcp-tef 2>&1 | tail -100 || true
+          echo ""
+          echo "=== mcp-optimizer container logs ==="
+          docker logs mcp-optimizer 2>&1 | tail -100 || true
+          echo ""
+          echo "=== time container logs ==="
+          docker logs time 2>&1 | tail -50 || true
+          echo ""
+          echo "=== fetch container logs ==="
+          docker logs fetch 2>&1 | tail -50 || true
