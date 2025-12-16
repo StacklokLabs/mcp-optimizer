@@ -1,8 +1,7 @@
 name: MCP-TEF Integration Tests
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_call:
 
 permissions:
   contents: read
@@ -38,8 +37,6 @@ jobs:
           python-version: '3.13'
 
       - name: Install mtef CLI
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           uv tool install "mcp-tef-cli @ git+https://github.com/StacklokLabs/mcp-tef.git@cli-v0.0.3#subdirectory=cli"
 
