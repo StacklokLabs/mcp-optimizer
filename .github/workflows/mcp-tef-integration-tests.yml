@@ -66,6 +66,7 @@ jobs:
           thv run mcp-optimizer:latest
           --transport streamable-http
           --proxy-port 8080
+          --host 0.0.0.0
           --env TOOLHIVE_HOST=172.17.0.1
           --env TOOLHIVE_PORT=9090
           --env WORKLOAD_POLLING_INTERVAL=2
