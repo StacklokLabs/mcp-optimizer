@@ -182,8 +182,8 @@ jobs:
           TEST_CASE_OUTPUT=$(mtef test-case create \
             --name "MCP Optimizer Time Query" \
             --query "Tell me the current time in Tokyo" \
-            --servers "${MCP_SERVER_URL%%/mcp}" \
-            --expected-server "${MCP_SERVER_URL%%/mcp}" \
+            --servers "${MCP_SERVER_URL}" \
+            --expected-server "${MCP_SERVER_URL}" \
             --expected-tool "find_tool" \
             --format json \
             --insecure 2>&1)
