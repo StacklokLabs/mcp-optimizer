@@ -2,6 +2,10 @@ name: MCP-TEF Integration Tests
 
 on:
   workflow_call:
+    secrets:
+      OPENROUTER_API_KEY:
+        required: true
+        description: "API key for OpenRouter, used in mtef test runs"
 
 permissions:
   contents: read
