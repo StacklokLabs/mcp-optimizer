@@ -13,7 +13,6 @@ dependencies = [
     "mcp[cli]>=1.24.0",
     "numpy>=2.3.5",
     "pydantic>=2.12.5",
-    "rich>=14.2.0",
     "fastembed>=0.7.4",
     "sqlalchemy>=2.0.45",
     "structlog>=25.5.0",
@@ -42,6 +41,7 @@ examples = [
     "anthropic>=0.75.0",
     "pydantic-ai>=1.33.0",
     "matplotlib>=3.10.8",
+    "rich>=14.2.0",
 ]
 
 [build-system]
