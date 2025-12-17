@@ -6,7 +6,7 @@ import asyncio
 import os
 import time
 from functools import wraps
-from typing import Any, Awaitable, Callable, Self, TypeVar
+from typing import Any, Awaitable, Callable, Self, TypeVar, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -468,7 +468,18 @@ class ToolhiveClient:
                             host=self.thv_host,
                             port=self.thv_port,
                         )
-                        break
+                        # All retries exhausted - raise immediately
+                        error_msg = (
+                            f"Failed to connect to ToolHive after {self.max_retries} attempts. "
+                            f"Last error: {last_exception}"
+                        )
+                        logger.critical(
+                            "ToolHive connection failure - exiting",
+                            max_retries=self.max_retries,
+                            host=self.thv_host,
+                            last_error=str(last_exception),
+                        )
+                        raise ToolhiveConnectionError(error_msg) from last_exception
 
                     # Try to rediscover the port
                     logger.info(
@@ -493,20 +504,10 @@ class ToolhiveClient:
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * 2, self.max_backoff)
 
-            # All retries exhausted
-            error_msg = (
-                f"Failed to connect to ToolHive after {self.max_retries} attempts. "
-                f"Last error: {last_exception}"
-            )
-            logger.critical(
-                "ToolHive connection failure - exiting",
-                max_retries=self.max_retries,
-                host=self.thv_host,
-                last_error=str(last_exception),
-            )
-            raise ToolhiveConnectionError(error_msg) from last_exception
+            # Should never reach here - all paths should either return or raise
+            raise RuntimeError("Unexpected code path in _with_retry. Async wrapper failed.")
 
-        return wrapper
+        return cast(Callable[..., Awaitable[T]], wrapper)
 
     async def __aenter__(self) -> Self:
         """Async context manager entry."""
@@ -579,7 +580,8 @@ class ToolhiveClient:
 
             return workload_list
 
-        return await self._with_retry(_list_workloads_impl)()
+        result = await self._with_retry(_list_workloads_impl)()
+        return cast(WorkloadListResponse, result)
 
     async def get_workload_details(self, workload_name: str) -> Workload:
         """
@@ -629,7 +631,8 @@ class ToolhiveClient:
 
             return workload
 
-        return await self._with_retry(_get_workload_details_impl)()
+        result = await self._with_retry(_get_workload_details_impl)()
+        return cast(Workload, result)
 
     async def get_running_mcp_workloads(self) -> list[Workload]:
         """
@@ -699,7 +702,8 @@ class ToolhiveClient:
 
             return registry
 
-        return await self._with_retry(_get_registry_impl)()
+        result = await self._with_retry(_get_registry_impl)()
+        return cast(Registry, result)
 
     async def get_server_from_registry(
         self, server_name: str
@@ -776,7 +780,8 @@ class ToolhiveClient:
 
             return result
 
-        return await self._with_retry(_install_server_impl)()
+        result = await self._with_retry(_install_server_impl)()
+        return cast(dict, result)
 
     async def close(self):
         """Close the HTTP client."""
