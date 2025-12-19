@@ -16,14 +16,14 @@ This Helm chart deploys MCP Optimizer as an MCPServer resource in a Kubernetes c
 To install the chart from the OCI registry:
 
 ```bash
-helm install mcp-optimizer oci://ghcr.io/stacklok/mcp-optimizer/mcp-optimizer \
+helm install mcp-optimizer oci://ghcr.io/stackloklabs/mcp-optimizer/mcp-optimizer \
   -n toolhive-system --create-namespace
 ```
 
 To install a specific version:
 
 ```bash
-helm install mcp-optimizer oci://ghcr.io/stacklok/mcp-optimizer/mcp-optimizer \
+helm install mcp-optimizer oci://ghcr.io/stackloklabs/mcp-optimizer/mcp-optimizer \
   --version 0.1.0 \
   -n toolhive-system --create-namespace
 ```
@@ -115,7 +115,7 @@ Key environment variables set by default:
 
 ```bash
 # From OCI registry (recommended)
-helm install mcp-optimizer oci://ghcr.io/stacklok/mcp-optimizer/mcp-optimizer \
+helm install mcp-optimizer oci://ghcr.io/stackloklabs/mcp-optimizer/mcp-optimizer \
   -n toolhive-system --create-namespace
 
 # From local chart
@@ -140,7 +140,7 @@ helm install mcp-optimizer ./helm/mcp-optimizer \
 ### Installation with Custom Registry
 
 ```bash
-helm install mcp-optimizer oci://ghcr.io/stacklok/mcp-optimizer/mcp-optimizer \
+helm install mcp-optimizer oci://ghcr.io/stackloklabs/mcp-optimizer/mcp-optimizer \
   --set mcpserver.image.repository=myregistry.com/mcp-optimizer \
   --set mcpserver.image.tag=v0.2.0 \
   -n toolhive-system
@@ -230,7 +230,7 @@ To upgrade an existing release:
 
 ```bash
 # From OCI registry
-helm upgrade mcp-optimizer oci://ghcr.io/stacklok/mcp-optimizer/mcp-optimizer -n toolhive-system
+helm upgrade mcp-optimizer oci://ghcr.io/stackloklabs/mcp-optimizer/mcp-optimizer -n toolhive-system
 
 # From local chart
 helm upgrade mcp-optimizer ./helm/mcp-optimizer -n toolhive-system
