@@ -32,8 +32,6 @@ spec:
   serviceAccount: {{ include "mcp-optimizer.serviceAccountName" . }}
 
   # Pod template spec with merged environment variables
-  {{- if .Values.mcpserver.podTemplateSpec }}
   podTemplateSpec:
     {{- include "mcp-optimizer.podTemplateSpec" . | nindent 4 }}
-  {{- end }}
 

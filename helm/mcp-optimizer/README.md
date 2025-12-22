@@ -131,6 +131,14 @@ mcpserver:
       value: "custom-value"
 ```
 
+**Environment Variable Precedence:**
+Environment variables are merged with deduplication (last value wins) in this order:
+1. Base env vars from `podTemplateSpec.spec.containers[0].env` (lowest priority)
+2. Template-generated env vars (`ASYNC_DB_URL`, `DB_URL`, `ALLOWED_GROUPS`) (middle priority)
+3. Custom env vars from `mcpserver.env` (highest priority)
+
+If the same variable name appears multiple times, the last occurrence takes precedence. This allows you to override defaults using `mcpserver.env`.
+
 ## Examples
 
 ### Basic Installation
@@ -232,7 +240,7 @@ mcpserver:
 helm install mcp-optimizer ./helm/mcp-optimizer -f custom-values.yaml -n toolhive-system
 ```
 
-Note: Custom env vars in `mcpserver.env` are appended to the defaults. If you need to override a default env var (like `K8S_ALL_NAMESPACES`), you'll need to modify `podTemplateSpec` directly - see the example values files.
+Note: Custom env vars in `mcpserver.env` have the highest precedence and will override any defaults with the same name. To override a default env var (like `K8S_ALL_NAMESPACES`), simply add it to `mcpserver.env` with your desired value.
 
 ### Advanced Pod Customization with podTemplateSpec
 

@@ -117,8 +117,15 @@ This adds database URLs, ALLOWED_GROUPS, and custom env vars to the podTemplateS
 {{- $allowedGroups := dict "name" "ALLOWED_GROUPS" "value" (join "," .Values.groupFiltering.allowedGroups) }}
 {{- $additionalEnvs = append $additionalEnvs $allowedGroups }}
 {{- end }}
-{{- /* Merge all: base + additional + custom */ -}}
-{{- $finalEnv := concat $container.env $additionalEnvs .Values.mcpserver.env }}
+{{- /* Merge all env vars with deduplication (last value wins) */ -}}
+{{- $envMap := dict }}
+{{- range concat $container.env $additionalEnvs .Values.mcpserver.env }}
+{{- $_ := set $envMap .name . }}
+{{- end }}
+{{- $finalEnv := list }}
+{{- range $key, $val := $envMap }}
+{{- $finalEnv = append $finalEnv $val }}
+{{- end }}
 {{- $_ := set $container "env" $finalEnv }}
 {{- toYaml $podSpec }}
 {{- end }}

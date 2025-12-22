@@ -61,7 +61,7 @@ mcpserver:
               mountPath: /tmp
           env:
             - name: SQLITE_TMPDIR
-              value: "/tmp"
+              value: "/data"
             - name: RUNTIME_MODE
               value: "k8s"
             - name: K8S_ALL_NAMESPACES
