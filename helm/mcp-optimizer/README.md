@@ -100,14 +100,36 @@ The following table lists the configurable parameters of the MCP Optimizer chart
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `mcpserver.env` | Environment variables array | See values.yaml |
+| `mcpserver.env` | Additional environment variables to merge with defaults | `[]` (empty) |
+| `mcpserver.podTemplateSpec` | Full pod template specification | See values.yaml |
 
-Key environment variables set by default:
+Default environment variables (defined in `podTemplateSpec`):
 
+- `SQLITE_TMPDIR=/tmp` - Temporary directory for SQLite
 - `RUNTIME_MODE=k8s` - Run in Kubernetes mode
 - `K8S_ALL_NAMESPACES=true` - Query all namespaces
-- `MCP_PORT=9900` - MCP server port
 - `LOG_LEVEL=INFO` - Logging level
+- `WORKLOAD_POLLING_INTERVAL=60` - Polling interval in seconds
+- `REGISTRY_POLLING_INTERVAL=300` - Registry polling interval in seconds
+- `MAX_TOOLS_TO_RETURN=8` - Maximum tools in search results
+- `MAX_SERVERS_TO_RETURN=5` - Maximum servers in search results
+- `HYBRID_SEARCH_SEMANTIC_RATIO=0.5` - Semantic search ratio
+
+**Automatically Added:**
+- `ASYNC_DB_URL` - Generated from `database` configuration
+- `DB_URL` - Generated from `database` configuration
+- `ALLOWED_GROUPS` - Set from `groupFiltering.allowedGroups` if configured
+- `MCP_PORT` - Set by the ToolHive operator from `spec.port`
+
+**Adding Custom Environment Variables:**
+Use `mcpserver.env` to add additional env vars that will be merged with the defaults:
+
+```yaml
+mcpserver:
+  env:
+    - name: CUSTOM_VAR
+      value: "custom-value"
+```
 
 ## Examples
 
@@ -133,9 +155,10 @@ kind load docker-image mcp-optimizer:local
 helm install mcp-optimizer ./helm/mcp-optimizer \
   --set mcpserver.image.repository=mcp-optimizer \
   --set mcpserver.image.tag=local \
-  --set mcpserver.podTemplateSpec.spec.containers[0].imagePullPolicy=Never \
   -n toolhive-system
 ```
+
+Note: For advanced pod customization (like setting `imagePullPolicy`), use `podTemplateSpec` - see the "Advanced Pod Customization" section below.
 
 ### Installation with Custom Registry
 
@@ -193,16 +216,73 @@ helm install mcp-optimizer ./helm/mcp-optimizer -f custom-values.yaml -n toolhiv
 
 ### Installation with Single Namespace Scope
 
-To limit mcp-optimizer to query only a specific namespace:
+To limit mcp-optimizer to query only a specific namespace, you can override the default environment variables:
+
+```yaml
+# custom-values.yaml
+mcpserver:
+  env:
+    - name: K8S_ALL_NAMESPACES
+      value: "false"
+    - name: K8S_NAMESPACE
+      value: "my-namespace"
+```
 
 ```bash
-helm install mcp-optimizer ./helm/mcp-optimizer \
-  --set mcpserver.env[0].name=K8S_ALL_NAMESPACES \
-  --set mcpserver.env[0].value=false \
-  --set mcpserver.env[1].name=K8S_NAMESPACE \
-  --set mcpserver.env[1].value=my-namespace \
-  -n toolhive-system
+helm install mcp-optimizer ./helm/mcp-optimizer -f custom-values.yaml -n toolhive-system
 ```
+
+Note: Custom env vars in `mcpserver.env` are appended to the defaults. If you need to override a default env var (like `K8S_ALL_NAMESPACES`), you'll need to modify `podTemplateSpec` directly - see the example values files.
+
+### Advanced Pod Customization with podTemplateSpec
+
+The default configuration uses `podTemplateSpec` with emptyDir volumes for `/data` and `/tmp`. The helm chart automatically:
+- Adds `ASYNC_DB_URL` and `DB_URL` based on database configuration
+- Adds `ALLOWED_GROUPS` if `groupFiltering.allowedGroups` is set
+- Appends custom env vars from `mcpserver.env`
+
+You can customize `podTemplateSpec` for advanced use cases (different volumes, security contexts, init containers, etc.):
+
+```yaml
+# custom-values.yaml
+mcpserver:
+  podTemplateSpec:
+    spec:
+      securityContext:
+        fsGroup: 2000  # Custom security context
+      volumes:
+        - name: data
+          persistentVolumeClaim:  # Use PVC instead of emptyDir
+            claimName: mcp-data
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: mcp
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+          env:
+            # Define your base env vars
+            - name: LOG_LEVEL
+              value: "DEBUG"
+            - name: RUNTIME_MODE
+              value: "k8s"
+            # ... other env vars ...
+            # NOTE: ASYNC_DB_URL, DB_URL, and ALLOWED_GROUPS will be automatically added
+```
+
+```bash
+helm install mcp-optimizer ./helm/mcp-optimizer -f custom-values.yaml -n toolhive-system
+```
+
+**Note:** When customizing `podTemplateSpec`:
+- Database URLs (`ASYNC_DB_URL`, `DB_URL`) are automatically added by the template
+- `ALLOWED_GROUPS` is automatically added if you set `groupFiltering.allowedGroups`
+- Additional env vars from `mcpserver.env` are automatically appended
+- See `examples/mcp-servers/mcpserver_mcp-optimizer.yaml` for a complete working example
 
 ## Verifying the Installation
 
