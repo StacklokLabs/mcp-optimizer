@@ -95,3 +95,38 @@ Database URL for sync operations
 {{- end }}
 {{- end }}
 
+{{/*
+Merge environment variables into podTemplateSpec
+This adds database URLs, ALLOWED_GROUPS, and custom env vars to the podTemplateSpec
+*/}}
+{{- define "mcp-optimizer.podTemplateSpec" -}}
+{{- $podSpec := deepCopy .Values.mcpserver.podTemplateSpec }}
+{{- $container := index $podSpec.spec.containers 0 }}
+{{- if not $container.env }}
+{{- $_ := set $container "env" list }}
+{{- end }}
+{{- /* Build final env list by appending all additional vars */ -}}
+{{- $additionalEnvs := list }}
+{{- /* Add database URLs */ -}}
+{{- $asyncDbUrl := dict "name" "ASYNC_DB_URL" "value" (include "mcp-optimizer.asyncDbUrl" .) }}
+{{- $dbUrl := dict "name" "DB_URL" "value" (include "mcp-optimizer.dbUrl" .) }}
+{{- $additionalEnvs = append $additionalEnvs $asyncDbUrl }}
+{{- $additionalEnvs = append $additionalEnvs $dbUrl }}
+{{- /* Add ALLOWED_GROUPS if configured */ -}}
+{{- if and .Values.groupFiltering .Values.groupFiltering.allowedGroups }}
+{{- $allowedGroups := dict "name" "ALLOWED_GROUPS" "value" (join "," .Values.groupFiltering.allowedGroups) }}
+{{- $additionalEnvs = append $additionalEnvs $allowedGroups }}
+{{- end }}
+{{- /* Merge all env vars with deduplication (last value wins) */ -}}
+{{- $envMap := dict }}
+{{- range concat $container.env $additionalEnvs .Values.mcpserver.env }}
+{{- $_ := set $envMap .name . }}
+{{- end }}
+{{- $finalEnv := list }}
+{{- range $key, $val := $envMap }}
+{{- $finalEnv = append $finalEnv $val }}
+{{- end }}
+{{- $_ := set $container "env" $finalEnv }}
+{{- toYaml $podSpec }}
+{{- end }}
+

@@ -30,34 +30,8 @@ spec:
   
   # Service account for Kubernetes API access
   serviceAccount: {{ include "mcp-optimizer.serviceAccountName" . }}
-  
-  {{- if not .Values.mcpserver.podTemplateSpec }}
-  # Environment variables (only used when not using podTemplateSpec)
-  env:
-    {{- range .Values.mcpserver.env }}
-    - name: {{ .name }}
-      value: {{ .value | quote }}
-    {{- end }}
-    # Add database URLs
-    - name: ASYNC_DB_URL
-      value: {{ include "mcp-optimizer.asyncDbUrl" . | quote }}
-    - name: DB_URL
-      value: {{ include "mcp-optimizer.dbUrl" . | quote }}
-    {{- if .Values.groupFiltering }}
-    {{- if .Values.groupFiltering.allowedGroups }}
-    - name: ALLOWED_GROUPS
-      value: {{ join "," .Values.groupFiltering.allowedGroups | quote }}
-    {{- end }}
-    {{- end }}
-  
-  # Resource limits and requests (only used when not using podTemplateSpec)
-  resources:
-    {{- toYaml .Values.mcpserver.resources | nindent 4 }}
-  {{- end }}
-  
-  # Pod template spec for advanced customization
-  {{- with .Values.mcpserver.podTemplateSpec }}
+
+  # Pod template spec with merged environment variables
   podTemplateSpec:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- include "mcp-optimizer.podTemplateSpec" . | nindent 4 }}
 

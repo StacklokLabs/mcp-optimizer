@@ -35,13 +35,13 @@ mcpserver:
       cpu: "250m"
       memory: "256Mi"
   
-  # Environment variables for mcp-optimizer
-  # NOTE: When using podTemplateSpec, define env vars there instead of here
-  # to avoid duplicates
+  # Environment variables for mcp-optimizer (used for overrides when using podTemplateSpec)
+  # These will be merged with podTemplateSpec env vars if both are defined
+  # NOTE: ASYNC_DB_URL and DB_URL are automatically added by the template
   env: []
-  
-  # Pod template spec (optional) - use this for advanced pod customization
-  # When set, this takes precedence over env and resources fields above
+
+  # Pod template spec - default configuration with volumes and env vars
+  # Values from groupFiltering.allowedGroups and mcpserver.env will be merged into this
   podTemplateSpec:
     spec:
       securityContext:
@@ -61,7 +61,7 @@ mcpserver:
               mountPath: /tmp
           env:
             - name: SQLITE_TMPDIR
-              value: "/tmp"
+              value: "/data"
             - name: RUNTIME_MODE
               value: "k8s"
             - name: K8S_ALL_NAMESPACES
@@ -79,10 +79,8 @@ mcpserver:
               value: "5"
             - name: HYBRID_SEARCH_SEMANTIC_RATIO
               value: "0.5"
-            - name: ASYNC_DB_URL
-              value: "sqlite+aiosqlite:///data/mcp_optimizer.db"
-            - name: DB_URL
-              value: "sqlite:///data/mcp_optimizer.db"
+            # ASYNC_DB_URL and DB_URL are added by the template
+            # ALLOWED_GROUPS is added by the template if groupFiltering is configured
   
   # Labels to apply to the MCPServer resource
   labels: {}
@@ -134,8 +132,8 @@ database:
   # SQLite configuration (default)
   sqlite:
     # Path to SQLite database file (inside the container)
-    # Using /tmp for ephemeral storage (no persistent volume needed)
-    path: /tmp/mcp_optimizer.db
+    # Using /data for ephemeral storage with emptyDir (no persistent volume needed)
+    path: /data/mcp_optimizer.db
   
   # PostgreSQL configuration (optional)
   # postgresql:
