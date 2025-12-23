@@ -74,7 +74,7 @@ async def test_mcp_server_client_call_tool_streamable():
     mock_session.call_tool.return_value = mock_result
 
     with (
-        patch("mcp_optimizer.mcp_client.streamablehttp_client") as mock_client,
+        patch("mcp_optimizer.mcp_client.streamable_http_client") as mock_client,
         patch(
             "mcp_optimizer.mcp_client.ClientSession", return_value=mock_session
         ) as mock_session_class,
@@ -160,7 +160,7 @@ async def test_mcp_server_client_handles_exception_group():
     mock_session.initialize.side_effect = exception_group
 
     with (
-        patch("mcp_optimizer.mcp_client.streamablehttp_client") as mock_client,
+        patch("mcp_optimizer.mcp_client.streamable_http_client") as mock_client,
         patch(
             "mcp_optimizer.mcp_client.ClientSession", return_value=mock_session
         ) as mock_session_class,
@@ -193,7 +193,7 @@ async def test_mcp_server_client_handles_mcp_error():
     mock_session.initialize.side_effect = mcp_error
 
     with (
-        patch("mcp_optimizer.mcp_client.streamablehttp_client") as mock_client,
+        patch("mcp_optimizer.mcp_client.streamable_http_client") as mock_client,
         patch(
             "mcp_optimizer.mcp_client.ClientSession", return_value=mock_session
         ) as mock_session_class,
@@ -284,7 +284,7 @@ def test_workload_url_unchanged_after_init(url, proxy_mode):
     [
         (
             "http://localhost:8080/mcp/test-server",
-            "streamablehttp_client",
+            "streamable_http_client",
             (AsyncMock(), AsyncMock(), AsyncMock()),
         ),
         ("http://localhost:8080/sse/test-server", "sse_client", (AsyncMock(), AsyncMock())),
@@ -325,26 +325,24 @@ async def test_workload_url_unchanged_during_list_tools(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "url,proxy_mode,client_mock_name,context_return,expected_normalized_url",
+    "url,proxy_mode,client_mock_name,context_return",
     [
         (
             "http://localhost:8080/mcp/test-server",
             None,
-            "streamablehttp_client",
+            "streamable_http_client",
             (AsyncMock(), AsyncMock(), AsyncMock()),
-            "http://localhost:8080/mcp/test-server",  # Already contains /mcp, no normalization
         ),
         (
             "http://localhost:8080/custom/endpoint",
             "streamable-http",
-            "streamablehttp_client",
+            "streamable_http_client",
             (AsyncMock(), AsyncMock(), AsyncMock()),
-            "http://localhost:8080/custom/endpoint/mcp",  # Normalized to add /mcp
         ),
     ],
 )
 async def test_workload_url_unchanged_during_call_tool(
-    url, proxy_mode, client_mock_name, context_return, expected_normalized_url, mock_mcp_session
+    url, proxy_mode, client_mock_name, context_return, mock_mcp_session
 ):
     """Test that workload URL remains unchanged during call_tool."""
     workload = Workload(
@@ -373,8 +371,8 @@ async def test_workload_url_unchanged_during_call_tool(
         # Verify URL is unchanged in workload (we don't mutate the workload object)
         assert workload.url == url
 
-        # Verify the client was called with the normalized URL (normalization happens internally)
-        mock_client.assert_called_once_with(expected_normalized_url)
+        # Verify the client was called with the original URL (no normalization)
+        mock_client.assert_called_once_with(url)
 
 
 @pytest.mark.asyncio
@@ -391,7 +389,7 @@ async def test_workload_url_unchanged_multiple_operations(mock_mcp_session):
     client = MCPServerClient(workload, timeout=10)
 
     with (
-        patch("mcp_optimizer.mcp_client.streamablehttp_client") as mock_client,
+        patch("mcp_optimizer.mcp_client.streamable_http_client") as mock_client,
         patch(
             "mcp_optimizer.mcp_client.ClientSession", return_value=mock_mcp_session
         ) as mock_session_class,
