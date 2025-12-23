@@ -52,33 +52,14 @@ def determine_transport_type(workload: Workload) -> ToolHiveTransportType:
                 workload=workload.name,
             )
 
-    # Check proxy_mode as fallback
-    if workload.proxy_mode:
-        proxy_mode_lower = workload.proxy_mode.lower()
-        logger.debug(
-            f"Determining transport type from proxy_mode field: {proxy_mode_lower}",
-            workload=workload.name,
-        )
-        if proxy_mode_lower == "streamable-http":
-            return ToolHiveTransportType.STREAMABLE
-        elif proxy_mode_lower == "sse":
-            return ToolHiveTransportType.SSE
-        else:
-            logger.warning(
-                f"Unknown proxy mode: '{proxy_mode_lower}', falling back to URL detection",
-                workload=workload.name,
-            )
-
     # Fallback to URL-based detection for backwards compatibility
     if not workload.url:
-        logger.warning(
-            "No transport type, proxy mode, or URL available, defaulting to SSE",
-            workload=workload.name,
+        raise WorkloadConnectionError(
+            f"No transport type or URL available. Workload: {workload.name}",
         )
-        return ToolHiveTransportType.SSE
 
     logger.debug(
-        "No transport_type or proxy_mode available, falling back to URL-based detection",
+        "No transport_type available, falling back to URL-based detection",
         workload=workload.name,
     )
     return url_to_toolhive_transport_type(workload.url)

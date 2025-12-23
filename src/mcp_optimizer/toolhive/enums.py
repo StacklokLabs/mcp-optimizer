@@ -3,8 +3,8 @@ from enum import Enum
 
 class ToolHiveTransportType(str, Enum):
     """
-    Enum for ToolHive proxy modes.
-    Proxy modes is the MCP transport type in which ToolHive's proxy operates for a workload.
+    Enum for ToolHive transport types.
+    Transport types represent the MCP transport type in which ToolHive's operates for a workload.
     """
 
     STREAMABLE = "streamable-http"

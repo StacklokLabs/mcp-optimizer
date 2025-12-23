@@ -673,6 +673,7 @@ class IngestionService:
             ValueError: If workload data is invalid
             DuplicateRegistryServersError: If multiple matching registry servers found
         """
+        # Cast to TransportType (DB enum) from ToolHiveTransportType
         transport = cast(TransportType, determine_transport_type(workload))
         status = self._map_workload_status(workload.status)
 
