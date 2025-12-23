@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "aiosqlite>=0.22.0",
+    "aiosqlite>=0.22.1",
     "alembic>=1.17.2",
     "click>=8.3.1",
     "datamodel-code-generator[http]>=0.47.0",
