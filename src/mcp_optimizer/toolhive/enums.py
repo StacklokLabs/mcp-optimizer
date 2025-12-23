@@ -1,10 +1,10 @@
 from enum import Enum
 
 
-class ToolHiveProxyMode(str, Enum):
+class ToolHiveTransportType(str, Enum):
     """
-    Enum for ToolHive proxy modes.
-    Proxy modes is the MCP transport type in which ToolHive's proxy operates for a workload.
+    Enum for ToolHive transport types.
+    Transport types represent the MCP transport type in which ToolHive's operates for a workload.
     """
 
     STREAMABLE = "streamable-http"
@@ -32,21 +32,21 @@ class ToolHiveWorkloadStatus(str, Enum):
         return self.value
 
 
-def url_to_toolhive_proxy_mode(toolhive_url: str) -> ToolHiveProxyMode:
-    """Map ToolHive URL to ToolHiveProxyMode enum.
+def url_to_toolhive_transport_type(toolhive_url: str) -> ToolHiveTransportType:
+    """Map ToolHive URL to ToolHiveTransportType enum.
 
     Args:
         toolhive_url: ToolHive URL
 
     Returns:
-        Corresponding ToolHiveProxyMode enum value
+        Corresponding ToolHiveTransportType enum value
 
     Raises:
         IngestionError: If URL is not supported
     """
     if "/mcp" in toolhive_url:
-        return ToolHiveProxyMode.STREAMABLE
+        return ToolHiveTransportType.STREAMABLE
     elif "/sse" in toolhive_url:
-        return ToolHiveProxyMode.SSE
+        return ToolHiveTransportType.SSE
     else:
         raise ValueError(f"Unsupported ToolHive URL: {toolhive_url}")

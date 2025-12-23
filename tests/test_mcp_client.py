@@ -8,8 +8,13 @@ import pytest
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData
 
-from mcp_optimizer.mcp_client import MCPServerClient, WorkloadConnectionError
+from mcp_optimizer.mcp_client import (
+    MCPServerClient,
+    WorkloadConnectionError,
+    determine_transport_type,
+)
 from mcp_optimizer.toolhive.api_models.core import Workload
+from mcp_optimizer.toolhive.enums import ToolHiveTransportType
 
 
 @pytest.fixture
@@ -74,7 +79,7 @@ async def test_mcp_server_client_call_tool_streamable():
     mock_session.call_tool.return_value = mock_result
 
     with (
-        patch("mcp_optimizer.mcp_client.streamablehttp_client") as mock_client,
+        patch("mcp_optimizer.mcp_client.streamable_http_client") as mock_client,
         patch(
             "mcp_optimizer.mcp_client.ClientSession", return_value=mock_session
         ) as mock_session_class,
@@ -160,7 +165,7 @@ async def test_mcp_server_client_handles_exception_group():
     mock_session.initialize.side_effect = exception_group
 
     with (
-        patch("mcp_optimizer.mcp_client.streamablehttp_client") as mock_client,
+        patch("mcp_optimizer.mcp_client.streamable_http_client") as mock_client,
         patch(
             "mcp_optimizer.mcp_client.ClientSession", return_value=mock_session
         ) as mock_session_class,
@@ -193,7 +198,7 @@ async def test_mcp_server_client_handles_mcp_error():
     mock_session.initialize.side_effect = mcp_error
 
     with (
-        patch("mcp_optimizer.mcp_client.streamablehttp_client") as mock_client,
+        patch("mcp_optimizer.mcp_client.streamable_http_client") as mock_client,
         patch(
             "mcp_optimizer.mcp_client.ClientSession", return_value=mock_session
         ) as mock_session_class,
@@ -254,19 +259,19 @@ def mock_mcp_session():
 
 
 @pytest.mark.parametrize(
-    "url,proxy_mode",
+    "url,transport_type",
     [
         ("http://localhost:8080/sse/test-server", None),
         ("http://localhost:8080/mcp/test-server", "streamable-http"),
         ("http://localhost:8080/custom/endpoint", "sse"),
     ],
 )
-def test_workload_url_unchanged_after_init(url, proxy_mode):
+def test_workload_url_unchanged_after_init(url, transport_type):
     """Test that workload URL is not modified during MCPServerClient initialization."""
     workload = Workload(
         name="test-server",
         url=url,
-        proxy_mode=proxy_mode,
+        transport_type=transport_type,
         status="running",
         tool_type="mcp",
     )
@@ -284,7 +289,7 @@ def test_workload_url_unchanged_after_init(url, proxy_mode):
     [
         (
             "http://localhost:8080/mcp/test-server",
-            "streamablehttp_client",
+            "streamable_http_client",
             (AsyncMock(), AsyncMock(), AsyncMock()),
         ),
         ("http://localhost:8080/sse/test-server", "sse_client", (AsyncMock(), AsyncMock())),
@@ -325,32 +330,30 @@ async def test_workload_url_unchanged_during_list_tools(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "url,proxy_mode,client_mock_name,context_return,expected_normalized_url",
+    "url,transport_type,client_mock_name,context_return",
     [
         (
             "http://localhost:8080/mcp/test-server",
             None,
-            "streamablehttp_client",
+            "streamable_http_client",
             (AsyncMock(), AsyncMock(), AsyncMock()),
-            "http://localhost:8080/mcp/test-server",  # Already contains /mcp, no normalization
         ),
         (
             "http://localhost:8080/custom/endpoint",
             "streamable-http",
-            "streamablehttp_client",
+            "streamable_http_client",
             (AsyncMock(), AsyncMock(), AsyncMock()),
-            "http://localhost:8080/custom/endpoint/mcp",  # Normalized to add /mcp
         ),
     ],
 )
 async def test_workload_url_unchanged_during_call_tool(
-    url, proxy_mode, client_mock_name, context_return, expected_normalized_url, mock_mcp_session
+    url, transport_type, client_mock_name, context_return, mock_mcp_session
 ):
     """Test that workload URL remains unchanged during call_tool."""
     workload = Workload(
         name="test-server",
         url=url,
-        proxy_mode=proxy_mode,
+        transport_type=transport_type,
         status="running",
         tool_type="mcp",
     )
@@ -373,8 +376,8 @@ async def test_workload_url_unchanged_during_call_tool(
         # Verify URL is unchanged in workload (we don't mutate the workload object)
         assert workload.url == url
 
-        # Verify the client was called with the normalized URL (normalization happens internally)
-        mock_client.assert_called_once_with(expected_normalized_url)
+        # Verify the client was called with the original URL (no normalization)
+        mock_client.assert_called_once_with(url)
 
 
 @pytest.mark.asyncio
@@ -391,7 +394,7 @@ async def test_workload_url_unchanged_multiple_operations(mock_mcp_session):
     client = MCPServerClient(workload, timeout=10)
 
     with (
-        patch("mcp_optimizer.mcp_client.streamablehttp_client") as mock_client,
+        patch("mcp_optimizer.mcp_client.streamable_http_client") as mock_client,
         patch(
             "mcp_optimizer.mcp_client.ClientSession", return_value=mock_mcp_session
         ) as mock_session_class,
@@ -414,3 +417,147 @@ async def test_workload_url_unchanged_multiple_operations(mock_mcp_session):
         assert mock_client.call_count == 3
         for call in mock_client.call_args_list:
             assert call[0][0] == original_url
+
+
+# Unit tests for determine_transport_type function
+
+
+def test_determine_transport_type_streamable_http():
+    """Test determine_transport_type with transport_type set to 'streamable-http'."""
+    workload = Workload(
+        name="test-workload",
+        transport_type="streamable-http",
+        url="http://localhost:8080/some/path",
+    )
+    result = determine_transport_type(workload)
+    assert result == ToolHiveTransportType.STREAMABLE
+
+
+def test_determine_transport_type_sse():
+    """Test determine_transport_type with transport_type set to 'sse'."""
+    workload = Workload(
+        name="test-workload",
+        transport_type="sse",
+        url="http://localhost:8080/some/path",
+    )
+    result = determine_transport_type(workload)
+    assert result == ToolHiveTransportType.SSE
+
+
+def test_determine_transport_type_case_insensitive_streamable():
+    """Test determine_transport_type with uppercase 'STREAMABLE-HTTP'."""
+    workload = Workload(
+        name="test-workload",
+        transport_type="STREAMABLE-HTTP",
+        url="http://localhost:8080/some/path",
+    )
+    result = determine_transport_type(workload)
+    assert result == ToolHiveTransportType.STREAMABLE
+
+
+def test_determine_transport_type_case_insensitive_sse():
+    """Test determine_transport_type with uppercase 'SSE'."""
+    workload = Workload(
+        name="test-workload",
+        transport_type="SSE",
+        url="http://localhost:8080/some/path",
+    )
+    result = determine_transport_type(workload)
+    assert result == ToolHiveTransportType.SSE
+
+
+def test_determine_transport_type_mixed_case():
+    """Test determine_transport_type with mixed case 'Streamable-Http'."""
+    workload = Workload(
+        name="test-workload",
+        transport_type="Streamable-Http",
+        url="http://localhost:8080/some/path",
+    )
+    result = determine_transport_type(workload)
+    assert result == ToolHiveTransportType.STREAMABLE
+
+
+def test_determine_transport_type_fallback_to_url_mcp():
+    """Test determine_transport_type falls back to URL detection for /mcp path."""
+    workload = Workload(
+        name="test-workload",
+        url="http://localhost:8080/mcp/test-server",
+    )
+    result = determine_transport_type(workload)
+    assert result == ToolHiveTransportType.STREAMABLE
+
+
+def test_determine_transport_type_fallback_to_url_sse():
+    """Test determine_transport_type falls back to URL detection for /sse path."""
+    workload = Workload(
+        name="test-workload",
+        url="http://localhost:8080/sse/test-server",
+    )
+    result = determine_transport_type(workload)
+    assert result == ToolHiveTransportType.SSE
+
+
+def test_determine_transport_type_unknown_fallback_to_url_mcp():
+    """Test determine_transport_type with unknown transport_type falls back to URL with /mcp."""
+    workload = Workload(
+        name="test-workload",
+        transport_type="unknown-transport",
+        url="http://localhost:8080/mcp/test-server",
+    )
+    result = determine_transport_type(workload)
+    assert result == ToolHiveTransportType.STREAMABLE
+
+
+def test_determine_transport_type_unknown_fallback_to_url_sse():
+    """Test determine_transport_type with unknown transport_type falls back to URL with /sse."""
+    workload = Workload(
+        name="test-workload",
+        transport_type="unknown-transport",
+        url="http://localhost:8080/sse/test-server",
+    )
+    result = determine_transport_type(workload)
+    assert result == ToolHiveTransportType.SSE
+
+
+def test_determine_transport_type_no_transport_no_url():
+    """Test determine_transport_type raises error when no transport_type and no URL."""
+    workload = Workload(
+        name="test-workload",
+    )
+    with pytest.raises(WorkloadConnectionError, match="No transport type or URL available"):
+        determine_transport_type(workload)
+
+
+def test_determine_transport_type_unknown_transport_no_url():
+    """Test determine_transport_type raises error when unknown transport_type and no URL."""
+    workload = Workload(
+        name="test-workload",
+        transport_type="unknown-transport",
+    )
+    with pytest.raises(WorkloadConnectionError, match="No transport type or URL available"):
+        determine_transport_type(workload)
+
+
+def test_determine_transport_type_unknown_transport_unsupported_url():
+    """
+    Test determine_transport_type raises ValueError when unknown transport_type and unsupported URL.
+    """
+    workload = Workload(
+        name="test-workload",
+        transport_type="unknown-transport",
+        url="http://localhost:8080/unsupported/path",
+    )
+    with pytest.raises(ValueError, match="Unsupported ToolHive URL"):
+        determine_transport_type(workload)
+
+
+def test_determine_transport_type_no_transport_unsupported_url():
+    """
+    Test determine_transport_type raises ValueError when no transport_type and unsupported URL.
+    """
+    workload = Workload(
+        name="test-workload",
+        url="http://localhost:8080/unknown/path",
+    )
+    with pytest.raises(ValueError, match="Unsupported ToolHive URL"):
+        determine_transport_type(workload)
