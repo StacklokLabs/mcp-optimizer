@@ -4,17 +4,16 @@ MCP client for connecting to and listing tools from MCP servers.
 
 import asyncio
 from typing import Any, Awaitable, Callable
-from urllib.parse import urlparse, urlunparse
 
 import structlog
 from mcp import ClientSession
 from mcp.client.sse import sse_client
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.exceptions import McpError
 from mcp.types import CallToolResult, ListToolsResult
 
 from mcp_optimizer.toolhive.api_models.core import Workload
-from mcp_optimizer.toolhive.enums import ToolHiveProxyMode, url_to_toolhive_proxy_mode
+from mcp_optimizer.toolhive.enums import ToolHiveTransportMode, url_to_toolhive_transport_mode
 
 logger = structlog.get_logger(__name__)
 
@@ -25,78 +24,95 @@ class WorkloadConnectionError(Exception):
     pass
 
 
+def determine_transport_type(workload: Workload, runtime_mode: str) -> ToolHiveTransportMode:
+    """
+    Determine the transport type from workload configuration based on runtime mode.
+
+    Depending on the runtime mode, the transport type is determined differently:
+    - In docker mode: determined from proxy_mode (how the proxy connects to the container)
+    - In k8s mode: determined from transport_type (the direct connection type to the pod)
+
+    Args:
+        workload: Workload configuration containing transport information
+        runtime_mode: Runtime environment - "docker" or "k8s"
+
+    Returns:
+        ToolHiveProxyMode: The transport type to use (SSE or STREAMABLE)
+
+    Raises:
+        WorkloadConnectionError: If transport type cannot be determined
+    """
+    # Docker mode: Check proxy_mode field (proxy connection type)
+    if runtime_mode == "docker":
+        if workload.proxy_mode:
+            transport_field_lower = workload.proxy_mode.lower()
+            logger.debug(
+                f"Docker mode: determining transport from proxy_mode field: "
+                f"{transport_field_lower}",
+                workload=workload.name,
+                runtime_mode=runtime_mode,
+            )
+            if transport_field_lower == "streamable-http":
+                return ToolHiveTransportMode.STREAMABLE
+            elif transport_field_lower == "sse":
+                return ToolHiveTransportMode.SSE
+            else:
+                logger.warning(
+                    f"Unknown transport in proxy_mode: '{transport_field_lower}', "
+                    "falling back to URL detection",
+                    workload=workload.name,
+                )
+
+    # K8s mode: Check transport_type field (direct connection type)
+    elif runtime_mode == "k8s":
+        if workload.transport_type:
+            transport_field_lower = workload.transport_type.lower()
+            logger.debug(
+                f"K8s mode: determining transport from transport_type field: "
+                f"{transport_field_lower}",
+                workload=workload.name,
+                runtime_mode=runtime_mode,
+            )
+            if transport_field_lower == "streamable-http":
+                return ToolHiveTransportMode.STREAMABLE
+            elif transport_field_lower == "sse":
+                return ToolHiveTransportMode.SSE
+            else:
+                logger.warning(
+                    f"Unknown transport in transport_type: '{transport_field_lower}', "
+                    "falling back to URL detection",
+                    workload=workload.name,
+                )
+
+    # Fallback to URL-based detection for backwards compatibility
+    if not workload.url:
+        raise WorkloadConnectionError(
+            f"No transport type or URL available. Workload: {workload.name}",
+        )
+
+    logger.debug(
+        "No transport field available, falling back to URL-based detection",
+        workload=workload.name,
+        runtime_mode=runtime_mode,
+    )
+    return url_to_toolhive_transport_mode(workload.url)
+
+
 class MCPServerClient:
     """Client for connecting to individual MCP servers."""
 
-    def __init__(self, workload: Workload, timeout: float):
+    def __init__(self, workload: Workload, timeout: float, runtime_mode: str = "docker"):
         """
         Initialize MCP client for a specific workload.
 
         Args:
             workload: The workload (MCP server) to connect to
             timeout: Timeout in seconds for operations (default: from config)
+            runtime_mode: Runtime environment - "docker" or "k8s" (default: "docker")
         """
         self.workload = workload
         self.timeout = timeout
-
-    def _normalize_url(self, url: str, proxy_mode: ToolHiveProxyMode) -> str:
-        """
-        Normalize URL for the given proxy mode.
-
-        For streamable-http:
-        - Fragments must be stripped as they're not supported
-        - Path must be /mcp (not /sse) as streamable-http uses /mcp endpoint
-        For SSE, fragments are preserved as they're used for container identification.
-
-        Args:
-            url: Original URL from ToolHive
-            proxy_mode: The proxy mode being used
-
-        Returns:
-            Normalized URL without fragments and with correct path for streamable-http,
-            original URL for SSE
-        """
-        if proxy_mode == ToolHiveProxyMode.STREAMABLE:
-            # Strip fragments for streamable-http
-            # (fragments not supported by streamable-http client)
-            parsed = urlparse(url)
-
-            # Fix path: streamable-http uses /mcp endpoint, not /sse
-            path = parsed.path
-            if path.endswith("/sse"):
-                path = path.replace("/sse", "/mcp")
-            elif not path.endswith("/mcp"):
-                # Only add /mcp if the path doesn't already contain /mcp
-                # This prevents double-adding /mcp to URLs like /mcp/test-server
-                if "/mcp" not in path:
-                    # If path doesn't end with /mcp or /sse, and doesn't contain /mcp,
-                    # ensure it ends with /mcp
-                    if path.endswith("/"):
-                        path = path + "mcp"
-                    else:
-                        path = path + "/mcp"
-
-            # Reconstruct URL without fragment and with corrected path
-            normalized_tuple = (
-                parsed.scheme,
-                parsed.netloc,
-                path,
-                parsed.params,
-                parsed.query,
-                "",  # Empty fragment
-            )
-            normalized = str(urlunparse(normalized_tuple))
-            if normalized != url:
-                logger.debug(
-                    "Normalized URL for streamable-http",
-                    original_url=url,
-                    normalized_url=normalized,
-                    workload=self.workload.name,
-                )
-            return normalized
-        else:
-            # SSE preserves fragments (used for container identification)
-            return url
+        self.runtime_mode = runtime_mode
 
     def _extract_error_from_exception_group(self, eg: ExceptionGroup) -> str:
         """
@@ -133,46 +149,6 @@ class MCPServerClient:
         # Fallback to the exception group message
         return str(eg)
 
-    def _determine_proxy_mode(self) -> ToolHiveProxyMode:
-        """
-        Determine the proxy mode from workload configuration.
-
-        Returns:
-            ToolHiveProxyMode: The proxy mode to use
-
-        Raises:
-            WorkloadConnectionError: If proxy mode is unknown or not set
-        """
-        if self.workload.proxy_mode:
-            proxy_mode_lower = self.workload.proxy_mode.lower()
-            logger.debug(
-                f"Determining proxy mode from proxy_mode field: {proxy_mode_lower}",
-                workload=self.workload.name,
-            )
-            if proxy_mode_lower == "streamable-http":
-                return ToolHiveProxyMode.STREAMABLE
-            elif proxy_mode_lower == "sse":
-                return ToolHiveProxyMode.SSE
-            else:
-                logger.warning(
-                    f"Unknown proxy_mode '{proxy_mode_lower}', falling back to URL detection",
-                    workload=self.workload.name,
-                )
-
-        # Fallback to URL-based detection for backwards compatibility
-        if not self.workload.url:
-            logger.warning(
-                "No proxy_mode or URL available, defaulting to SSE",
-                workload=self.workload.name,
-            )
-            return ToolHiveProxyMode.SSE
-
-        logger.debug(
-            "No proxy_mode available, falling back to URL-based detection",
-            workload=self.workload.name,
-        )
-        return url_to_toolhive_proxy_mode(self.workload.url)
-
     async def _execute_with_session(self, operation: Callable[[ClientSession], Awaitable]) -> Any:
         """
         Execute an operation with an MCP session.
@@ -188,31 +164,34 @@ class MCPServerClient:
 
         logger.debug(f"Workload URL: {self.workload.url}")
 
-        # Determine proxy mode and normalize URL
-        proxy_mode = self._determine_proxy_mode()
-        normalized_url = self._normalize_url(self.workload.url, proxy_mode)
+        # Determine transport type based on runtime mode
+        # Docker: uses proxy_mode field (how proxy connects to container)
+        # K8s: uses transport_type field (direct connection to pod)
+        transport_type = determine_transport_type(self.workload, self.runtime_mode)
 
         logger.info(
-            f"Using {proxy_mode} client for workload '{self.workload.name}'",
+            f"Using {transport_type} client for workload '{self.workload.name}'",
             workload=self.workload.name,
+            transport_type_field=self.workload.transport_type,
             proxy_mode_field=self.workload.proxy_mode,
-            original_url=self.workload.url,
-            normalized_url=normalized_url,
+            url=self.workload.url,
         )
 
         try:
-            if proxy_mode == ToolHiveProxyMode.STREAMABLE:
+            if transport_type == ToolHiveTransportMode.STREAMABLE:
                 return await asyncio.wait_for(
-                    self._execute_streamable_session(operation, normalized_url),
+                    self._execute_streamable_session(operation, self.workload.url),
                     timeout=self.timeout,
                 )
-            elif proxy_mode == ToolHiveProxyMode.SSE:
+            elif transport_type == ToolHiveTransportMode.SSE:
                 return await asyncio.wait_for(
-                    self._execute_sse_session(operation, normalized_url), timeout=self.timeout
+                    self._execute_sse_session(operation, self.workload.url), timeout=self.timeout
                 )
             else:
-                logger.error(f"Unsupported transport type: {proxy_mode}", workload=self.workload)
-                raise WorkloadConnectionError(f"Unsupported transport type: {proxy_mode}")
+                logger.error(
+                    f"Unsupported transport type: {transport_type}", workload=self.workload
+                )
+                raise WorkloadConnectionError(f"Unsupported transport type: {transport_type}")
         except asyncio.TimeoutError as e:
             logger.error(
                 f"Operation timed out after {self.timeout} seconds", workload=self.workload
@@ -248,15 +227,15 @@ class MCPServerClient:
             workload=self.workload.name,
             url=url,
         )
-        async with streamablehttp_client(url) as (read_stream, write_stream, _):
+        async with streamable_http_client(url) as (read_stream, write_stream, _):
             async with ClientSession(read_stream, write_stream) as session:
                 logger.info(
-                    f"Initializing MCP session for workload '{self.workload.name}'",
+                    "Initializing Streamable MCP session for workload",
                     workload=self.workload.name,
                 )
                 await session.initialize()
                 logger.debug(
-                    f"MCP session initialized successfully for workload '{self.workload.name}'",
+                    "Streamable MCP session initialized successfully",
                     workload=self.workload.name,
                 )
                 return await operation(session)
@@ -273,12 +252,12 @@ class MCPServerClient:
         async with sse_client(url) as (read_stream, write_stream):
             async with ClientSession(read_stream, write_stream) as session:
                 logger.info(
-                    f"Initializing MCP session for workload '{self.workload.name}'",
+                    "Initializing SSE MCP session for workload",
                     workload=self.workload.name,
                 )
                 await session.initialize()
                 logger.debug(
-                    f"MCP session initialized successfully for workload '{self.workload.name}'",
+                    "SSE MCP session initialized successfully for workload",
                     workload=self.workload.name,
                 )
                 return await operation(session)

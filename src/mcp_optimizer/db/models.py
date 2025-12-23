@@ -18,7 +18,7 @@ from pydantic import (
 class TransportType(str, Enum):
     """
     Enum for transport types.
-    There is 1:1 relation between ToolHive proxy modes to database transport types.
+    There is 1:1 relation between ToolHive transport modes to database transport types.
     """
 
     SSE = "sse"

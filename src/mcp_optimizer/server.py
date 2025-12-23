@@ -545,7 +545,9 @@ async def call_tool(server_name: str, tool_name: str, parameters: dict) -> CallT
         logger.info(
             f"Calling tool '{tool_name}' on server '{server_name}' with parameters: {parameters}"
         )
-        mcp_client = MCPServerClient(workload, timeout=_config.mcp_timeout)
+        mcp_client = MCPServerClient(
+            workload, timeout=_config.mcp_timeout, runtime_mode=_config.runtime_mode
+        )
 
         # Call the tool using the MCP client
         try:

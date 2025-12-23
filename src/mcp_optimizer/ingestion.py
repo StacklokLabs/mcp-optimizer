@@ -15,7 +15,7 @@ from more_itertools import batched
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from mcp_optimizer.db.config import DatabaseConfig
-from mcp_optimizer.db.exceptions import DbNotFoundError
+from mcp_optimizer.db.exceptions import DbNotFoundError, DuplicateRegistryServersError
 from mcp_optimizer.db.models import (
     McpStatus,
     RegistryServer,
@@ -27,11 +27,14 @@ from mcp_optimizer.db.registry_tool_ops import RegistryToolOps
 from mcp_optimizer.db.workload_server_ops import WorkloadServerOps
 from mcp_optimizer.db.workload_tool_ops import WorkloadToolOps
 from mcp_optimizer.embeddings import EmbeddingManager
-from mcp_optimizer.mcp_client import MCPServerClient, WorkloadConnectionError
+from mcp_optimizer.mcp_client import (
+    MCPServerClient,
+    WorkloadConnectionError,
+    determine_transport_type,
+)
 from mcp_optimizer.token_counter import TokenCounter
 from mcp_optimizer.toolhive.api_models.core import Workload
 from mcp_optimizer.toolhive.api_models.registry import ImageMetadata, Registry, RemoteServerMetadata
-from mcp_optimizer.toolhive.enums import ToolHiveProxyMode, url_to_toolhive_proxy_mode
 from mcp_optimizer.toolhive.k8s_client import K8sClient
 from mcp_optimizer.toolhive.toolhive_client import (
     ToolhiveClient,
@@ -183,44 +186,6 @@ class IngestionService:
                 total_batches=(len(tasks) + batch_size - 1) // batch_size,
             )
         return results
-
-    def _map_transport_type(self, workload: Workload) -> TransportType:
-        """Map Toolhive transport type to database transport type.
-
-        Args:
-            workload: Workload object with proxy_mode and url
-
-        Returns:
-            Mapped transport type for database storage
-
-        Raises:
-            ValueError: If transport type is not supported
-        """
-        mapping = {
-            ToolHiveProxyMode.SSE: TransportType.SSE,
-            ToolHiveProxyMode.STREAMABLE: TransportType.STREAMABLE,
-        }
-
-        # Prefer using the proxy_mode field if available
-        if workload.proxy_mode:
-            proxy_mode_str = workload.proxy_mode.lower()
-            if proxy_mode_str == "sse":
-                return TransportType.SSE
-            elif proxy_mode_str == "streamable-http":
-                return TransportType.STREAMABLE
-            else:
-                logger.warning(
-                    f"Unknown proxy_mode '{proxy_mode_str}', falling back to URL detection",
-                    workload=workload.name,
-                )
-
-        # Fallback to URL-based detection for backwards compatibility
-        if workload.url is None:
-            raise IngestionError(f"Workload {workload.name} has no URL")
-
-        toolhive_proxy_mode = url_to_toolhive_proxy_mode(workload.url)
-
-        return mapping[toolhive_proxy_mode]
 
     def _map_workload_status(self, workload_status: str | None) -> McpStatus:
         """Map workload status to McpStatus enum.
@@ -607,8 +572,6 @@ class IngestionService:
         Raises:
             DuplicateRegistryServersError: If multiple matching servers found
         """
-        from mcp_optimizer.db.exceptions import DuplicateRegistryServersError
-
         # Find matching registry servers
         matching_servers = await self.registry_server_ops.find_matching_servers(
             url=url, package=package, remote=remote, conn=conn
@@ -710,9 +673,8 @@ class IngestionService:
             ValueError: If workload data is invalid
             DuplicateRegistryServersError: If multiple matching registry servers found
         """
-        from mcp_optimizer.db.exceptions import DuplicateRegistryServersError
-
-        transport = self._map_transport_type(workload)
+        # Cast to TransportType (DB enum) from ToolHiveTransportType
+        transport = cast(TransportType, determine_transport_type(workload, self.runtime_mode))
         status = self._map_workload_status(workload.status)
 
         if not workload.name:
@@ -987,8 +949,6 @@ class IngestionService:
         Returns:
             Processing result with status and counts
         """
-        from mcp_optimizer.db.exceptions import DuplicateRegistryServersError
-
         result = {
             "name": workload.name,
             "status": "failed",
@@ -1016,7 +976,9 @@ class IngestionService:
             )
 
             # Get tools from MCP server
-            mcp_client = MCPServerClient(workload, timeout=self.mcp_timeout)
+            mcp_client = MCPServerClient(
+                workload, timeout=self.mcp_timeout, runtime_mode=self.runtime_mode
+            )
             tools_result = await mcp_client.list_tools()
 
             # Sync tools with appropriate context
@@ -1026,6 +988,18 @@ class IngestionService:
 
             # Track if anything was updated
             was_updated = server_was_updated or tools_were_updated
+
+            logger.info(
+                "Processed workload",
+                server_id=server_id,
+                workload_name=workload.name,
+                url=workload.url,
+                transport_type=workload.transport_type,
+                group=workload.group,
+                tools_count=tools_count,
+                server_was_updated=server_was_updated,
+                tools_were_updated=tools_were_updated,
+            )
 
             # Calculate autonomous embedding if:
             # 1. Not linked to registry (registry_server_id is None)

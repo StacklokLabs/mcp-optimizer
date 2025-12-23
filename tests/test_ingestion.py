@@ -8,10 +8,9 @@ import pytest
 from mcp.types import Tool as McpTool
 
 from mcp_optimizer.db.config import DatabaseConfig
-from mcp_optimizer.db.models import McpStatus, TransportType
+from mcp_optimizer.db.models import McpStatus
 from mcp_optimizer.embeddings import EmbeddingManager
 from mcp_optimizer.ingestion import IngestionError, IngestionService
-from mcp_optimizer.toolhive.api_models.core import Workload
 
 
 class TestIngestionServiceMapping:
@@ -38,26 +37,6 @@ class TestIngestionServiceMapping:
             workload_ingestion_batch_size=5,
             encoding="cl100k_base",
         )
-
-    def test_map_transport_type_sse(self, ingestion_service):
-        """Test mapping SSE transport to TransportType.SSE."""
-        workload = Workload(name="test", url="http://localhost:8000/sse", proxy_mode="sse")
-        result = ingestion_service._map_transport_type(workload)
-        assert result == TransportType.SSE
-
-    def test_map_transport_type_streamable(self, ingestion_service):
-        """Test mapping streamable-http transport to TransportType.STREAMABLE."""
-        workload = Workload(
-            name="test", url="http://localhost:8000/mcp", proxy_mode="streamable-http"
-        )
-        result = ingestion_service._map_transport_type(workload)
-        assert result == TransportType.STREAMABLE
-
-    def test_map_transport_type_none_url_raises_error(self, ingestion_service):
-        """Test that None URL raises IngestionError."""
-        workload = Workload(name="test", url=None, proxy_mode=None)
-        with pytest.raises(IngestionError, match="Workload test has no URL"):
-            ingestion_service._map_transport_type(workload)
 
     def test_map_workload_status_running(self, ingestion_service):
         """Test mapping running status to McpStatus.RUNNING."""
