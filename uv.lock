@@ -729,7 +729,7 @@ wheels = [
 
 [[package]]
 name = "datamodel-code-generator"
-version = "0.47.0"
+version = "0.51.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "argcomplete" },
@@ -742,9 +742,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/54/49/28030c0345f0b953b60eb1f0e5644b36a97a606b8e3f79aa5a24b18d3b69/datamodel_code_generator-0.47.0.tar.gz", hash = "sha256:e05e1ff5df30316d938c68a94315c2dfd6219d40ebca80a954b05ca00157b112", size = 584157, upload-time = "2025-12-23T01:03:26.014Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/88/78/dd57f7cb55be1b5465718eb0a53be947984ae07e48c7cdfdef1ae3da976f/datamodel_code_generator-0.51.0.tar.gz", hash = "sha256:8944813cdd9a354e651513868204fffae56c004855f2316a660b023421c712d0", size = 758566, upload-time = "2026-01-01T00:02:32.532Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f3/10/4b697a86a776e1499153c8264a449c260f9aa8edf7c9c08c1eddaed731bf/datamodel_code_generator-0.47.0-py3-none-any.whl", hash = "sha256:553fa130879d6862b8aaf7a3036000941abb044a2f20ccea88ff3ec51aad5272", size = 193952, upload-time = "2025-12-23T01:03:24.609Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/8c/cdc5d3e6105adb6ff36da38187c8dfe9f0bbb2703edc953406ff6e85e6ed/datamodel_code_generator-0.51.0-py3-none-any.whl", hash = "sha256:dbca0a48dba156dcd7b3a53f9fdb8ecfcc77c4d21ee41c819a28d0cbaa98ac3a", size = 236968, upload-time = "2026-01-01T00:02:30.692Z" },
 ]
 
 [package.optional-dependencies]
@@ -2048,7 +2048,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.22.0" },
     { name = "alembic", specifier = ">=1.17.2" },
     { name = "click", specifier = ">=8.3.1" },
-    { name = "datamodel-code-generator", extras = ["http"], specifier = ">=0.47.0" },
+    { name = "datamodel-code-generator", extras = ["http"], specifier = ">=0.51.0" },
     { name = "fastembed", specifier = ">=0.7.4" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.25.0" },
