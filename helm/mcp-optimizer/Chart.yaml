@@ -2,8 +2,8 @@ apiVersion: v2
 name: mcp-optimizer
 description: A Helm chart for deploying MCP Optimizer MCP Server in Kubernetes
 type: application
-version: 0.1.1
-appVersion: "0.2.0"
+version: 0.2.1
+appVersion: "0.2.1"
 keywords:
   - mcp
   - mcp-optimizer
@@ -14,7 +14,3 @@ sources:
   - https://github.com/StacklokLabs/mcp-optimizer
 maintainers:
   - name: MCP Optimizer Team
-
-# Changelog:
-# 0.1.1 - Fix groupFiltering.allowedGroups feature with automatic env var merging in podTemplateSpec
-# 0.1.0 - Initial release
