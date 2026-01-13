@@ -147,7 +147,7 @@ class MCPOptimizerConfig(BaseModel):
 
     # Timeout configuration
     mcp_timeout: int = Field(
-        default=10, ge=1, le=300, description="MCP operation timeout in seconds (1-300)"
+        default=20, ge=1, le=300, description="MCP operation timeout in seconds (1-300)"
     )
 
     # Database configuration

@@ -5,6 +5,7 @@ MCP client for connecting to and listing tools from MCP servers.
 import asyncio
 from typing import Any, Awaitable, Callable
 
+import httpx
 import structlog
 from mcp import ClientSession
 from mcp.client.sse import sse_client
@@ -16,6 +17,79 @@ from mcp_optimizer.toolhive.api_models.core import Workload
 from mcp_optimizer.toolhive.enums import ToolHiveTransportMode, url_to_toolhive_transport_mode
 
 logger = structlog.get_logger(__name__)
+
+
+class _TolerantStream(httpx.AsyncByteStream):
+    """
+    Stream wrapper that tolerates incomplete response errors.
+
+    Some remote SSE servers (behind proxies/CDNs) close POST response connections
+    before sending the complete response body. This is not a problem for SSE
+    because the actual MCP response arrives via the SSE stream, not the POST response.
+    """
+
+    def __init__(self, original_stream: httpx.AsyncByteStream):
+        self._original: httpx.AsyncByteStream = original_stream
+
+    async def __aiter__(self):
+        try:
+            async for chunk in self._original:
+                yield chunk
+        except httpx.RemoteProtocolError as e:
+            # Server closed connection before body was sent - this is OK
+            # for SSE since the actual response comes via the SSE stream
+            logger.debug(
+                "Ignoring RemoteProtocolError on POST response (expected for some SSE servers)",
+                error=str(e),
+            )
+
+    async def aclose(self):
+        await self._original.aclose()
+
+
+class _TolerantTransport(httpx.AsyncHTTPTransport):
+    """
+    Custom transport that tolerates servers closing POST response connections early.
+
+    This is needed for some remote SSE MCP servers where the proxy/CDN closes
+    the POST response connection before the body is fully sent. The actual MCP
+    response arrives via SSE, so the POST response body is not needed.
+    """
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        response = await super().handle_async_request(request)
+
+        # For POST requests, wrap the stream to tolerate incomplete responses
+        if request.method == "POST":
+            original_stream = response.stream
+            # AsyncHTTPTransport always produces AsyncByteStream
+            if not isinstance(original_stream, httpx.AsyncByteStream):
+                raise TypeError(
+                    "Expected response.stream to be an instance of httpx.AsyncByteStream"
+                )
+            response.stream = _TolerantStream(original_stream)
+
+        return response
+
+
+def _create_tolerant_httpx_client(
+    headers: dict[str, str] | None = None,
+    timeout: httpx.Timeout | None = None,
+    auth: httpx.Auth | None = None,
+) -> httpx.AsyncClient:
+    """
+    Create an httpx client that tolerates incomplete POST responses.
+
+    This is needed for remote SSE MCP servers where the server/proxy closes
+    the POST response connection before the body is sent. The actual MCP
+    response arrives via SSE, so this is safe to ignore.
+    """
+    return httpx.AsyncClient(
+        headers=headers,
+        timeout=timeout,
+        auth=auth,
+        transport=_TolerantTransport(),
+    )
 
 
 class WorkloadConnectionError(Exception):
@@ -243,13 +317,25 @@ class MCPServerClient:
     async def _execute_sse_session(
         self, operation: Callable[[ClientSession], Awaitable], url: str
     ) -> Any:
-        """Execute operation with SSE session."""
+        """
+        Execute operation with SSE session.
+
+        Uses a tolerant client that ignores incomplete POST response body errors.
+        This is needed because some remote SSE servers (behind proxies/CDNs) close
+        the POST response connection before the body is fully sent. The actual MCP
+        response arrives via the SSE stream, so the POST response body is not needed.
+        """
         logger.debug(
             f"Establishing SSE session for workload '{self.workload.name}'",
             workload=self.workload.name,
             url=url,
         )
-        async with sse_client(url) as (read_stream, write_stream):
+
+        # Use tolerant client to handle servers that close POST response connections early
+        async with sse_client(url=url, httpx_client_factory=_create_tolerant_httpx_client) as (
+            read_stream,
+            write_stream,
+        ):
             async with ClientSession(read_stream, write_stream) as session:
                 logger.info(
                     "Initializing SSE MCP session for workload",
