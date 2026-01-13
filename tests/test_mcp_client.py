@@ -4,6 +4,7 @@ Tests for the MCP client.
 
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData
@@ -11,6 +12,8 @@ from mcp.types import ErrorData
 from mcp_optimizer.mcp_client import (
     MCPServerClient,
     WorkloadConnectionError,
+    _create_tolerant_httpx_client,
+    _TolerantStream,
     determine_transport_type,
 )
 from mcp_optimizer.toolhive.api_models.core import Workload
@@ -325,7 +328,13 @@ async def test_workload_url_unchanged_during_list_tools(
         assert workload.url == url
 
         # Verify the client was called with the original URL
-        mock_client.assert_called_once_with(url)
+        # SSE client uses keyword arguments including httpx_client_factory
+        if client_mock_name == "sse_client":
+            mock_client.assert_called_once()
+            assert mock_client.call_args.kwargs["url"] == url
+            assert "httpx_client_factory" in mock_client.call_args.kwargs
+        else:
+            mock_client.assert_called_once_with(url)
 
 
 @pytest.mark.asyncio
@@ -633,3 +642,151 @@ def test_determine_transport_type_docker_fallback_when_no_proxy_mode():
     result = determine_transport_type(workload, "docker")
     # Docker mode should ignore transport_type and fallback to URL
     assert result == ToolHiveTransportMode.STREAMABLE
+
+
+# Unit tests for SSE tolerant client behavior
+
+
+@pytest.mark.asyncio
+async def test_sse_session_propagates_errors(mock_mcp_session):
+    """Test that SSE session propagates errors as WorkloadConnectionError."""
+    workload = Workload(
+        name="test-server",
+        url="http://localhost:8080/sse/test-server",
+        status="running",
+        tool_type="mcp",
+    )
+
+    client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
+
+    class FailingCM:
+        async def __aenter__(self):
+            raise ExceptionGroup("errors", [ValueError("some error")])
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            return False
+
+    with (
+        patch("mcp_optimizer.mcp_client.sse_client") as mock_sse_client,
+        patch("mcp_optimizer.mcp_client.ClientSession", return_value=mock_mcp_session),
+    ):
+        mock_sse_client.return_value = FailingCM()
+
+        # Should raise WorkloadConnectionError
+        with pytest.raises(WorkloadConnectionError):
+            await client.list_tools()
+
+        # Verify sse_client was called once
+        assert mock_sse_client.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_sse_session_uses_tolerant_client(mock_mcp_session):
+    """Test that SSE session always uses the tolerant httpx client."""
+    workload = Workload(
+        name="test-server",
+        url="http://localhost:8080/sse/test-server",
+        status="running",
+        tool_type="mcp",
+    )
+
+    client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
+
+    with (
+        patch("mcp_optimizer.mcp_client.sse_client") as mock_sse_client,
+        patch(
+            "mcp_optimizer.mcp_client.ClientSession", return_value=mock_mcp_session
+        ) as mock_session_class,
+    ):
+        # Mock successful connection
+        mock_sse_client.return_value.__aenter__.return_value = (AsyncMock(), AsyncMock())
+        mock_session_class.return_value.__aenter__.return_value = mock_mcp_session
+
+        # Call list_tools
+        await client.list_tools()
+
+        # Verify sse_client was called with httpx_client_factory
+        assert mock_sse_client.call_count == 1
+        call_kwargs = mock_sse_client.call_args.kwargs
+        assert "httpx_client_factory" in call_kwargs
+        assert call_kwargs["httpx_client_factory"] == _create_tolerant_httpx_client
+
+
+# Unit tests for _TolerantStream class
+
+
+class MockAsyncByteStream(httpx.AsyncByteStream):
+    """Mock async byte stream for testing _TolerantStream."""
+
+    def __init__(self, chunks: list[bytes], exception: Exception | None = None):
+        self.chunks = chunks
+        self.exception = exception
+        self._closed = False
+
+    async def __aiter__(self):
+        for chunk in self.chunks:
+            yield chunk
+        if self.exception:
+            raise self.exception
+
+    async def aclose(self):
+        self._closed = True
+
+
+@pytest.mark.asyncio
+async def test_tolerant_stream_swallows_remote_protocol_error():
+    """Test that _TolerantStream catches and ignores RemoteProtocolError."""
+    # Create a stream that raises RemoteProtocolError after yielding some data
+    error = httpx.RemoteProtocolError("Server disconnected")
+    mock_stream = MockAsyncByteStream(chunks=[b"chunk1", b"chunk2"], exception=error)
+
+    tolerant_stream = _TolerantStream(mock_stream)
+
+    # Should not raise, just stop iterating
+    chunks = []
+    async for chunk in tolerant_stream:
+        chunks.append(chunk)
+
+    # Should have received the chunks before the error
+    assert chunks == [b"chunk1", b"chunk2"]
+
+
+@pytest.mark.asyncio
+async def test_tolerant_stream_propagates_other_errors():
+    """Test that _TolerantStream does not swallow non-RemoteProtocolError exceptions."""
+    # Create a stream that raises a different error
+    error = ValueError("Some other error")
+    mock_stream = MockAsyncByteStream(chunks=[b"chunk1"], exception=error)
+
+    tolerant_stream = _TolerantStream(mock_stream)
+
+    # Should raise ValueError, not swallow it
+    with pytest.raises(ValueError, match="Some other error"):
+        async for _ in tolerant_stream:
+            pass
+
+
+@pytest.mark.asyncio
+async def test_tolerant_stream_passes_through_chunks():
+    """Test that _TolerantStream correctly passes through all chunks when no error."""
+    mock_stream = MockAsyncByteStream(chunks=[b"chunk1", b"chunk2", b"chunk3"])
+
+    tolerant_stream = _TolerantStream(mock_stream)
+
+    chunks = []
+    async for chunk in tolerant_stream:
+        chunks.append(chunk)
+
+    assert chunks == [b"chunk1", b"chunk2", b"chunk3"]
+
+
+@pytest.mark.asyncio
+async def test_tolerant_stream_aclose():
+    """Test that _TolerantStream properly closes the underlying stream."""
+    mock_stream = MockAsyncByteStream(chunks=[])
+
+    tolerant_stream = _TolerantStream(mock_stream)
+
+    assert not mock_stream._closed
+    await tolerant_stream.aclose()
+    assert mock_stream._closed
