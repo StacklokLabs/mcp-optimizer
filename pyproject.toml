@@ -38,7 +38,7 @@ security = [
     "cyclonedx-bom>=7.2.1",
 ]
 examples = [
-    "anthropic>=0.75.0",
+    "anthropic>=0.76.0",
     "pydantic-ai>=1.41.0",
     "matplotlib>=3.10.8",
     "rich>=14.2.0",
