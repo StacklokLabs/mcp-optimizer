@@ -50,7 +50,7 @@ mcpserver:
   resources:
     limits:
       cpu: "1000m"
-      memory: "1Gi"
+      memory: "2Gi"
     requests:
       cpu: "250m"
       memory: "256Mi"

@@ -60,7 +60,7 @@ The following table lists the configurable parameters of the MCP Optimizer chart
 | `mcpserver.transport` | MCP transport protocol | `streamable-http` |
 | `mcpserver.port` | MCP server port | `9900` |
 | `mcpserver.resources.limits.cpu` | CPU limit | `1000m` |
-| `mcpserver.resources.limits.memory` | Memory limit | `1Gi` |
+| `mcpserver.resources.limits.memory` | Memory limit | `2Gi` |
 | `mcpserver.resources.requests.cpu` | CPU request | `250m` |
 | `mcpserver.resources.requests.memory` | Memory request | `256Mi` |
 
