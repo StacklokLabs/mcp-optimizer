@@ -30,3 +30,13 @@ sbom.json
 # Example data and results (download from releases)
 examples/anthropic_comparison/*.json
 examples/anthropic_comparison/*.png
+
+# AppWorld data
+data/
+
+# ONNX models (too large for git)
+src/mcp_optimizer/response_optimizer/models/
+
+# Experiment state and results
+**/*_state.json
+**/*_results.json
