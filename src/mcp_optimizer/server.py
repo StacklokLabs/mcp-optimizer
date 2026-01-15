@@ -10,6 +10,7 @@ from starlette.responses import JSONResponse, Response
 
 from mcp_optimizer.config import MCPOptimizerConfig
 from mcp_optimizer.db.config import DatabaseConfig
+from mcp_optimizer.db.exceptions import DbNotFoundError
 from mcp_optimizer.db.models import (
     McpStatus,
     RegistryServer,
@@ -19,11 +20,13 @@ from mcp_optimizer.db.models import (
 )
 from mcp_optimizer.db.registry_server_ops import RegistryServerOps
 from mcp_optimizer.db.registry_tool_ops import RegistryToolOps
+from mcp_optimizer.db.tool_response_ops import ToolResponseOps
 from mcp_optimizer.db.workload_server_ops import WorkloadServerOps
 from mcp_optimizer.db.workload_tool_ops import WorkloadToolOps
 from mcp_optimizer.embeddings import EmbeddingManager
 from mcp_optimizer.install import McpServerInstaller
 from mcp_optimizer.mcp_client import MCPServerClient
+from mcp_optimizer.response_optimizer import QueryExecutionError, ResponseOptimizer, execute_query
 from mcp_optimizer.token_limiter import limit_tool_response
 from mcp_optimizer.toolhive.api_models.core import Workload
 from mcp_optimizer.toolhive.toolhive_client import ToolhiveClient
@@ -88,6 +91,16 @@ class McpInstallationError(McpOptimizerError):
         super().__init__(f"Failed to install MCP server '{server_name}': {original_error}")
 
 
+class ResponseQueryError(McpOptimizerError):
+    """Exception raised when querying a stored response fails."""
+
+    def __init__(self, response_id: str, query: str, reason: str):
+        self.response_id = response_id
+        self.query = query
+        self.reason = reason
+        super().__init__(f"Failed to query response '{response_id}' with '{query}': {reason}")
+
+
 # Initialize FastMCP - port will be overridden during startup
 mcp = FastMCP(name="mcp-optimizer", host="0.0.0.0", port=9900)  # nosec B104 - Intentionally bind to all interfaces for server accessibility
 
@@ -100,6 +113,8 @@ registry_tool_ops: RegistryToolOps | None = None
 workload_server_ops: WorkloadServerOps | None = None
 registry_server_ops: RegistryServerOps | None = None
 mcp_installer: McpServerInstaller | None = None
+response_optimizer: ResponseOptimizer | None = None
+tool_response_ops: ToolResponseOps | None = None
 
 
 def _register_tools(config: MCPOptimizerConfig) -> None:
@@ -109,6 +124,9 @@ def _register_tools(config: MCPOptimizerConfig) -> None:
     - find_tool: Find tools from running servers
     - call_tool: Execute tools on servers
     - list_tools: List all available tools
+
+    Response optimization tools (when response_optimizer_enabled is True):
+    - search_in_tool_response: Search/query stored tool responses
 
     Dynamic installation tools (only when enable_dynamic_install is True):
     - search_registry: Search for tools in the registry
@@ -120,6 +138,11 @@ def _register_tools(config: MCPOptimizerConfig) -> None:
     mcp.tool()(list_tools)
 
     registered_tools = ["find_tool", "call_tool", "list_tools"]
+
+    # Register response optimization tools if enabled
+    if config.response_optimizer_enabled:
+        mcp.tool()(search_in_tool_response)
+        registered_tools.append("search_in_tool_response")
 
     # Register dynamic installation tools if feature flag is enabled
     # Dynamic installation is not implemented for k8s
@@ -144,6 +167,7 @@ def initialize_server_components(config: MCPOptimizerConfig) -> None:
     """Initialize server components with configuration values."""
     global embedding_manager, _config, workload_tool_ops, registry_tool_ops
     global workload_server_ops, registry_server_ops, mcp_installer
+    global response_optimizer, tool_response_ops
     _config = config
     db = DatabaseConfig(database_url=config.async_db_url)
     # Initialize separated ops classes
@@ -173,6 +197,20 @@ def initialize_server_components(config: MCPOptimizerConfig) -> None:
     mcp_installer = McpServerInstaller(
         toolhive_client=toolhive_client, workload_server_ops=workload_server_ops
     )
+
+    # Initialize response optimizer if enabled
+    if config.response_optimizer_enabled:
+        tool_response_ops = ToolResponseOps(db)
+        response_optimizer = ResponseOptimizer(
+            token_threshold=config.response_optimizer_threshold,
+            head_lines=config.response_head_lines,
+            tail_lines=config.response_tail_lines,
+        )
+        logger.info(
+            "Response optimizer enabled",
+            threshold=config.response_optimizer_threshold,
+            kv_ttl=config.response_kv_ttl,
+        )
 
     # Register tools based on runtime mode
     _register_tools(config)
@@ -486,6 +524,94 @@ async def search_registry(tool_description: str, tool_keywords: str) -> list[Too
         raise ToolDiscoveryError(f"Registry search failed: {e}") from e
 
 
+async def _apply_response_optimization(
+    tool_result: CallToolResult,
+    tool_name: str,
+    server_name: str,
+) -> CallToolResult:
+    """Apply response optimization or token limiting to a tool result.
+
+    Only TextContent items are optimized. Other content types (images, etc.)
+    are left untouched and returned as-is.
+    """
+    if _config is None:
+        return tool_result
+
+    # Apply response optimization if enabled (takes precedence over simple limiting)
+    if _config.response_optimizer_enabled and response_optimizer is not None:
+        # Extract text content from the result - only TextContent is optimized
+        text_contents = [c for c in tool_result.content if isinstance(c, TextContent)]
+        # Keep non-text content unchanged (images, etc.)
+        non_text_contents = [c for c in tool_result.content if not isinstance(c, TextContent)]
+
+        if text_contents:
+            # Combine all text content for optimization
+            combined_text = "\n".join(c.text for c in text_contents)
+
+            # Optimize the response
+            optimized = await response_optimizer.optimize(
+                content=combined_text,
+                tool_name=tool_name,
+                max_tokens=_config.response_optimizer_threshold,
+            )
+
+            if optimized.was_optimized:
+                logger.info(
+                    "Tool response was optimized",
+                    tool_name=tool_name,
+                    server_name=server_name,
+                    original_tokens=optimized.token_metrics.baseline_tokens,
+                    final_tokens=optimized.token_metrics.returned_tokens,
+                    savings_percentage=f"{optimized.token_metrics.savings_percentage:.1f}%",
+                    content_type=optimized.content_type.value,
+                )
+
+                # Store original in KV store if tool_response_ops is available
+                if tool_response_ops is not None:
+                    await tool_response_ops.create_tool_response(
+                        tool_name=tool_name,
+                        original_content=combined_text,
+                        content_type=optimized.content_type,
+                        session_key=optimized.session_key,
+                        ttl_seconds=_config.response_kv_ttl,
+                        metadata={
+                            "server_name": server_name,
+                            "response_id": optimized.response_id,
+                        },
+                    )
+
+            # Always return structured response for text content (optimized or not)
+            # Serialize the full OptimizedResponse so LLM has access to metadata
+            optimized_content = TextContent(type="text", text=optimized.model_dump_json(indent=2))
+            # Combine: structured text content first, then non-text content unchanged
+            tool_result.content = [optimized_content] + non_text_contents
+
+        return tool_result
+
+    # Fall back to simple token limiting if configured (legacy behavior)
+    if _config.max_tool_response_tokens is not None:
+        limited = limit_tool_response(tool_result, _config.max_tool_response_tokens)
+
+        if limited.was_truncated:
+            logger.warning(
+                "Tool response was truncated due to token limit",
+                tool_name=tool_name,
+                server_name=server_name,
+                original_tokens=limited.original_tokens,
+                final_tokens=limited.final_tokens,
+                max_tokens=_config.max_tool_response_tokens,
+            )
+
+            # Prepend truncation message to the response content
+            truncation_notice = TextContent(type="text", text=limited.truncation_message or "")
+            limited.result.content.insert(0, truncation_notice)
+
+        return limited.result
+
+    # No optimization or token limiting configured, return result as-is
+    return tool_result
+
+
 async def call_tool(server_name: str, tool_name: str, parameters: dict) -> CallToolResult:
     """
     Execute a specific tool with the provided parameters.
@@ -504,10 +630,20 @@ async def call_tool(server_name: str, tool_name: str, parameters: dict) -> CallT
                    (structure must match the tool's schema from find_tool())
 
     Returns:
-        CallToolResult: The output from the tool execution, which may include:
-                       - Success/failure status
-                       - Result data or content
-                       - Error messages if execution failed
+        CallToolResult: The output from the tool execution. When response optimization
+                       is enabled, TextContent responses are returned as structured JSON with:
+                       - response_id: UUID for retrieving original content from KV store
+                       - content: The optimized or original content
+                       - was_optimized: Boolean flag indicating if optimization was applied
+                       - hints: Query hints for retrieving specific parts of original content
+                         (only present when was_optimized is true)
+                       - token_metrics: Token efficiency metrics with fields:
+                         - baseline_tokens: Original token count
+                         - returned_tokens: Final token count after optimization
+                         - tokens_saved: Number of tokens saved
+                         - savings_percentage: Percentage of tokens saved (0-100)
+
+                       Non-text content (images, etc.) is returned unchanged.
 
     Important: Always use find_tool() first to get the correct server_name and tool_name
               and parameter schema before calling this function.
@@ -553,30 +689,8 @@ async def call_tool(server_name: str, tool_name: str, parameters: dict) -> CallT
         try:
             tool_result = await mcp_client.call_tool(tool_name, parameters)
 
-            # Apply token limiting to the response if configured
-            if _config.max_tool_response_tokens is not None:
-                limited = limit_tool_response(tool_result, _config.max_tool_response_tokens)
-
-                if limited.was_truncated:
-                    logger.warning(
-                        "Tool response was truncated due to token limit",
-                        tool_name=tool_name,
-                        server_name=server_name,
-                        original_tokens=limited.original_tokens,
-                        final_tokens=limited.final_tokens,
-                        max_tokens=_config.max_tool_response_tokens,
-                    )
-
-                    # Prepend truncation message to the response content
-                    truncation_notice = TextContent(
-                        type="text", text=limited.truncation_message or ""
-                    )
-                    limited.result.content.insert(0, truncation_notice)
-
-                return limited.result
-            else:
-                # No token limiting configured, return result as-is
-                return tool_result
+            # Apply response optimization or token limiting
+            return await _apply_response_optimization(tool_result, tool_name, server_name)
         except Exception as e:
             logger.exception("Tool execution failed")
             raise ToolExecutionError(tool_name, server_name, e) from e
@@ -638,6 +752,129 @@ async def install_server(server_name: str) -> str:
         error_msg = f"Unexpected error installing server '{server_name}': {str(e)}"
         logger.exception("Unexpected error during server installation", error=str(e))
         raise McpInstallationError(server_name, e) from e
+
+
+async def search_in_tool_response(response_id: str, query: str) -> str:
+    """
+    Search or extract specific content from a previously optimized tool response.
+
+    Use this function when:
+    - A previous call_tool() response was optimized and you need more details
+    - The optimized response includes hints suggesting you can query for more data
+    - You need to retrieve the full original content or specific parts of it
+
+    The query format depends on the original content type:
+    - JSON content: Use JQ syntax (e.g., ".results", ".[0].name", ".data | length")
+    - Markdown content: Specify section headers (e.g., "## Installation", "Getting Started")
+    - Unstructured text: Use shell-like commands:
+        * "head -n 50" - First 50 lines
+        * "tail -n 20" - Last 20 lines
+        * "lines 10-50" - Lines 10 through 50
+        * "grep error" - Lines containing "error"
+        * "grep -i warning" - Case-insensitive search for "warning"
+    - Any content type: Use "full" to retrieve the complete original response
+
+    Note: If the query result exceeds the configured token threshold, it will be
+    automatically optimized to fit within budget while preserving key information.
+
+    Args:
+        response_id: The UUID from a previous optimized response
+                    (found in the response_id field of call_tool() output)
+        query: The search query appropriate for the content type:
+              - For JSON: JQ expression (e.g., ".items[0]", ".data.users")
+              - For Markdown: Section header (e.g., "## API Reference")
+              - For text: Shell command (e.g., "grep ERROR", "head -n 100")
+              - For any type: "full" returns the complete original content
+
+    Returns:
+        str: The extracted content matching your query. If the result exceeds
+             the token threshold, it will be returned as an optimized response
+             with the same structured format as call_tool() output.
+
+    Examples:
+        # Get specific field from JSON response
+        search_in_tool_response("abc-123", ".results[0].title")
+
+        # Get a markdown section
+        search_in_tool_response("def-456", "## Installation")
+
+        # Search for errors in log output
+        search_in_tool_response("ghi-789", "grep -i error")
+
+        # Get the complete original response
+        search_in_tool_response("jkl-012", "full")
+    """
+    if tool_response_ops is None or _config is None:
+        raise RuntimeError("Server components not initialized")
+
+    # Retrieve the stored response from KV store
+    try:
+        stored_response = await tool_response_ops.get_tool_response(response_id)
+    except DbNotFoundError as e:
+        raise ResponseQueryError(
+            response_id=response_id,
+            query=query,
+            reason="Response not found or has expired. Responses are stored temporarily.",
+        ) from e
+
+    original_content = stored_response.original_content
+    content_type = stored_response.content_type
+
+    logger.info(
+        "Searching in stored tool response",
+        response_id=response_id,
+        query=query,
+        content_type=content_type.value,
+        content_length=len(original_content),
+    )
+
+    if query.strip().lower() == "full":
+        logger.info(
+            "Query requests full original content",
+            response_id=response_id,
+        )
+        return original_content
+
+    # Execute the query
+    try:
+        result = execute_query(original_content, content_type, query)
+    except QueryExecutionError as e:
+        raise ResponseQueryError(
+            response_id=response_id,
+            query=query,
+            reason=e.reason,
+        ) from e
+    except Exception as e:
+        raise ResponseQueryError(
+            response_id=response_id,
+            query=query,
+            reason=f"Query execution failed: {str(e)}",
+        ) from e
+
+    # Check if result exceeds threshold and re-optimize if needed
+    if response_optimizer is not None and _config.response_optimizer_enabled:
+        threshold = _config.response_optimizer_threshold
+        # Use the optimizer's token estimation
+        estimated_tokens = len(result) // 4  # Rough estimate: ~4 chars per token
+
+        if estimated_tokens > threshold:
+            logger.info(
+                "Query result exceeds threshold, applying optimization",
+                response_id=response_id,
+                estimated_tokens=estimated_tokens,
+                threshold=threshold,
+            )
+
+            # Re-optimize the query result
+            optimized = await response_optimizer.optimize(
+                content=result,
+                tool_name=f"search_in_tool_response:{stored_response.tool_name}",
+                max_tokens=threshold,
+            )
+
+            return optimized.content
+
+    return result
 
 
 # Create the starlette app first

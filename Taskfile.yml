@@ -146,3 +146,29 @@ tasks:
     desc: Check status of all MCP server examples
     cmds:
       - ./examples/mcp-servers/status-mcp-servers.sh
+
+  appworld-install:
+    desc: Install AppWorld data (installs from source)
+    cmds:
+      - uv pip install pip
+      - uv run pip install git+https://github.com/stonybrooknlp/appworld.git
+      - uv run appworld install
+      - uv run appworld download data
+      - uv run appworld --version
+
+  appworld-serve-api:
+    desc: Start AppWorld API server (port 9000) in isolated environment. Downloads base DBs if not present.
+    cmds:
+      - mkdir -p data/base_dbs
+      - uv run appworld serve apis --port 9000
+
+  appworld-serve-mcp:
+    desc: Start AppWorld MCP server (port 10000) in isolated environment
+    cmds:
+      - uv run appworld serve mcp http --remote-apis-url http://localhost:9000 --port 10000
+
+  appworld-experiment:
+    desc: Run AppWorld experiment (requires servers running)
+    cmds:
+      - uv run python examples/call_tool_optimizer/run_experiment.py {{.CLI_ARGS}}
+

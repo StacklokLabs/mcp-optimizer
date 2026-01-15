@@ -2077,13 +2077,16 @@ dependencies = [
     { name = "fastembed" },
     { name = "httpx" },
     { name = "mcp", extra = ["cli"] },
+    { name = "mistune" },
     { name = "numpy" },
+    { name = "onnxruntime" },
     { name = "pydantic" },
     { name = "semver" },
     { name = "sqlalchemy" },
     { name = "sqlite-vec" },
     { name = "structlog" },
     { name = "tiktoken" },
+    { name = "transformers" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "watchfiles" },
 ]
@@ -2124,12 +2127,14 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.26.0" },
     { name = "numpy", specifier = ">=2.4.0" },
+    { name = "onnxruntime", specifier = ">=1.18.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "semver", specifier = ">=3.0.4" },
     { name = "sqlalchemy", specifier = ">=2.0.46" },
     { name = "sqlite-vec", specifier = ">=0.1.6" },
     { name = "structlog", specifier = ">=25.5.0" },
     { name = "tiktoken", specifier = ">=0.12.0" },
+    { name = "transformers", specifier = ">=4.40.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.40.0" },
     { name = "watchfiles", specifier = ">=1.1.1" },
 ]
@@ -2185,6 +2190,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5a/8d/d8b7af67a966b6f227024e1cb7287fc19901a434f87a5a391dcfe635d338/mistralai-1.9.11.tar.gz", hash = "sha256:3df9e403c31a756ec79e78df25ee73cea3eb15f86693773e16b16adaf59c9b8a", size = 208051, upload-time = "2025-10-02T15:53:40.473Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fe/76/4ce12563aea5a76016f8643eff30ab731e6656c845e9e4d090ef10c7b925/mistralai-1.9.11-py3-none-any.whl", hash = "sha256:7a3dc2b8ef3fceaa3582220234261b5c4e3e03a972563b07afa150e44a25a6d3", size = 442796, upload-time = "2025-10-02T15:53:39.134Z" },
+]
+
+[[package]]
+name = "mistune"
+version = "3.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9d/55/d01f0c4b45ade6536c51170b9043db8b2ec6ddf4a35c7ea3f5f559ac935b/mistune-3.2.0.tar.gz", hash = "sha256:708487c8a8cdd99c9d90eb3ed4c3ed961246ff78ac82f03418f5183ab70e398a", size = 95467, upload-time = "2025-12-23T11:36:34.994Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9b/f7/4a5e785ec9fbd65146a27b6b70b6cdc161a66f2024e4b04ac06a67f5578b/mistune-3.2.0-py3-none-any.whl", hash = "sha256:febdc629a3c78616b94393c6580551e0e34cc289987ec6c35ed3f4be42d0eee1", size = 53598, upload-time = "2025-12-23T11:36:33.211Z" },
 ]
 
 [[package]]
