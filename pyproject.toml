@@ -9,7 +9,7 @@ dependencies = [
     "alembic>=1.18.1",
     "click>=8.3.1",
     "datamodel-code-generator[http]>=0.53.0",
-    "httpx>=0.28.1",
+    "httpx>=0.27.0",
     "mcp[cli]>=1.25.0",
     "numpy>=2.4.0",
     "pydantic>=2.12.5",
@@ -21,6 +21,9 @@ dependencies = [
     "sqlite-vec>=0.1.6",
     "tiktoken>=0.12.0",
     "semver>=3.0.4",
+    "mistune>=3.0.0",
+    "onnxruntime>=1.18.0",
+    "transformers>=4.40.0",
 ]
 
 [dependency-groups]
@@ -31,6 +34,7 @@ dev = [
     "ruff>=0.14.11",
     "ty>=0.0.12",
     "pytest-cov>=7.0.0",
+    "optimum[exporters]>=1.19.0",
 ]
 security = [
     "bandit[toml]>=1.9.2",
