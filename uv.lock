@@ -2074,7 +2074,7 @@ dev = [
 examples = [
     { name = "anthropic", specifier = ">=0.76.0" },
     { name = "matplotlib", specifier = ">=3.10.8" },
-    { name = "pydantic-ai", specifier = ">=1.42.0" },
+    { name = "pydantic-ai", specifier = ">=1.44.0" },
     { name = "rich", specifier = ">=14.2.0" },
 ]
 security = [
