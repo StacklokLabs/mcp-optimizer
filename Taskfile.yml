@@ -151,7 +151,7 @@ tasks:
     desc: Install AppWorld data (installs from source)
     cmds:
       - uv pip install pip
-      - uv run pip install git+https://github.com/stonybrooknlp/appworld.git
+      - uv run pip install git+https://github.com/StacklokLabs/appworld.git
       - uv run appworld install
       - uv run appworld download data
       - uv run appworld --version
