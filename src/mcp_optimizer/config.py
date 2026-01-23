@@ -512,20 +512,14 @@ def _setup_model_paths(config_data: dict[str, Any]) -> None:
     fastembed_default, tiktoken_default, llmlingua_default = _get_default_model_paths()
 
     # Only set defaults if not already provided and the default path exists
-    if "fastembed_cache_path" not in config_data:
-        if Path(fastembed_default).exists():
-            config_data["fastembed_cache_path"] = fastembed_default
-            logger.debug("Using default fastembed cache path", path=fastembed_default)
+    if "fastembed_cache_path" not in config_data and Path(fastembed_default).exists():
+        config_data["fastembed_cache_path"] = fastembed_default
 
-    if "tiktoken_cache_dir" not in config_data:
-        if Path(tiktoken_default).exists():
-            config_data["tiktoken_cache_dir"] = tiktoken_default
-            logger.debug("Using default tiktoken cache path", path=tiktoken_default)
+    if "tiktoken_cache_dir" not in config_data and Path(tiktoken_default).exists():
+        config_data["tiktoken_cache_dir"] = tiktoken_default
 
-    if "llmlingua_model_path" not in config_data:
-        if Path(llmlingua_default).exists():
-            config_data["llmlingua_model_path"] = llmlingua_default
-            logger.debug("Using default llmlingua model path", path=llmlingua_default)
+    if "llmlingua_model_path" not in config_data and Path(llmlingua_default).exists():
+        config_data["llmlingua_model_path"] = llmlingua_default
 
 
 def _populate_config_from_env() -> dict[str, Any]:

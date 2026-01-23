@@ -77,16 +77,13 @@ def download_fastembed_model(cache_path: Path) -> bool:
     cache_path.mkdir(parents=True, exist_ok=True)
 
     try:
-        # Import fastembed and download the model
+        # Set cache path and download the model
         os.environ["FASTEMBED_CACHE_PATH"] = str(cache_path)
 
         # Instantiating TextEmbedding triggers the download
         _ = TextEmbedding(model_name=FASTEMBED_MODEL, cache_dir=str(cache_path))
         print(f"FastEmbed model downloaded to {cache_path}")
         return True
-    except ImportError:
-        print("ERROR: fastembed not installed. Run: uv sync --dev")
-        return False
     except Exception as e:
         print(f"ERROR: Failed to download FastEmbed model: {e}")
         return False
@@ -104,45 +101,53 @@ def download_tiktoken_encoding(cache_path: Path) -> bool:
         _ = tiktoken.get_encoding(TIKTOKEN_ENCODING)
         print(f"Tiktoken encoding downloaded to {cache_path}")
         return True
-    except ImportError:
-        print("ERROR: tiktoken not installed. Run: uv sync --dev")
-        return False
     except Exception as e:
         print(f"ERROR: Failed to download tiktoken encoding: {e}")
         return False
 
 
-def export_llmlingua_model(cache_path: Path) -> bool:
-    """Export LLMLingua model to ONNX format using optimum exporter."""
-    print(f"Exporting LLMLingua model '{LLMLINGUA_HF_MODEL}' to ONNX...")
+def _check_optimum_available() -> bool:
+    """Check if optimum.exporters.onnx module is available."""
+    try:
+        import importlib.util
+
+        spec = importlib.util.find_spec("optimum.exporters.onnx")
+        return spec is not None
+    except (ImportError, ModuleNotFoundError):
+        return False
+
+
+def download_and_export_llmlingua_model(cache_path: Path) -> bool:
+    """Download and export LLMLingua model to ONNX format using optimum exporter."""
+    print(f"Downloading and exporting LLMLingua model '{LLMLINGUA_HF_MODEL}' to ONNX...")
     cache_path.mkdir(parents=True, exist_ok=True)
+
+    # Check for optimum availability before attempting export
+    if not _check_optimum_available():
+        print("ERROR: optimum[onnxruntime] not installed. Run: uv sync --group offline-models")
+        return False
 
     output_dir = cache_path / LLMLINGUA_ONNX_FOLDER
 
+    # Use optimum.exporters.onnx module to export the model
+    # Command: python -m optimum.exporters.onnx -m MODEL output_dir --task TASK
+    cmd = [
+        sys.executable,
+        "-m",
+        "optimum.exporters.onnx",
+        "-m",
+        LLMLINGUA_HF_MODEL,
+        "--task",
+        "token-classification",
+        str(output_dir),
+    ]
+
     try:
-        # Use optimum.exporters.onnx module to export the model
-        # Command: python -m optimum.exporters.onnx -m MODEL output_dir --task TASK
-        cmd = [
-            sys.executable,
-            "-m",
-            "optimum.exporters.onnx",
-            "-m",
-            LLMLINGUA_HF_MODEL,
-            "--task",
-            "token-classification",
-            str(output_dir),
-        ]
-
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-
-        if result.returncode != 0:
-            print(f"ERROR: optimum export failed: {result.stderr}")
-            return False
-
+        subprocess.run(cmd, capture_output=True, text=True, check=True)
         print(f"LLMLingua ONNX model exported to {output_dir}")
         return True
-    except FileNotFoundError:
-        print("ERROR: optimum not installed. Run: uv sync --dev")
+    except subprocess.CalledProcessError as e:
+        print(f"ERROR: optimum export failed: {e.stderr}")
         return False
     except Exception as e:
         print(f"ERROR: Failed to export LLMLingua model: {e}")
@@ -229,9 +234,9 @@ def _download_all_models(
     else:
         print(f"Tiktoken encoding already exists at {tiktoken_path}")
 
-    # Export LLMLingua model
+    # Download and export LLMLingua model
     if force or not check_llmlingua_model(llmlingua_path):
-        if not export_llmlingua_model(llmlingua_path):
+        if not download_and_export_llmlingua_model(llmlingua_path):
             all_success = False
     else:
         print(f"LLMLingua ONNX model already exists at {llmlingua_path}")
