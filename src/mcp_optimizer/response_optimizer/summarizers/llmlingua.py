@@ -83,10 +83,10 @@ class LLMLinguaSummarizer(BaseSummarizer):
             # Try to load from local path first, fall back to HuggingFace
             tokenizer_path = self.model_path
             if (tokenizer_path / "tokenizer_config.json").exists():
-                self._tokenizer = AutoTokenizer.from_pretrained(str(tokenizer_path))
+                self._tokenizer = AutoTokenizer.from_pretrained(str(tokenizer_path))  # nosec B615
             else:
                 # Fall back to HuggingFace
-                self._tokenizer = AutoTokenizer.from_pretrained(
+                self._tokenizer = AutoTokenizer.from_pretrained(  # nosec B615
                     "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank"
                 )
 
@@ -163,9 +163,12 @@ class LLMLinguaSummarizer(BaseSummarizer):
 
         Returns:
             Compressed text with important tokens preserved
+
+        Raises:
+            RuntimeError: If the model is not available
         """
         if not self._load_model():
-            return self._fallback_summarize(text, target_tokens)
+            raise RuntimeError("LLMLingua model is not available")
 
         if self._tokenizer is None:
             raise RuntimeError("Tokenizer not initialized after successful model load")
@@ -200,7 +203,7 @@ class LLMLinguaSummarizer(BaseSummarizer):
 
         except Exception as e:
             logger.error("LLMLingua summarization failed", error=str(e))
-            return self._fallback_summarize(text, target_tokens)
+            raise RuntimeError(f"LLMLingua summarization failed: {e}") from e
 
     def _should_force_keep(self, token: str) -> bool:
         """Check if a token should always be kept."""
@@ -231,14 +234,3 @@ class LLMLinguaSummarizer(BaseSummarizer):
                 result.append(token)
 
         return " ".join(result)
-
-    def _fallback_summarize(self, text: str, target_tokens: int) -> str:
-        """Simple fallback when model is not available."""
-        # Rough estimate: 4 chars per token
-        max_chars = target_tokens * 4
-
-        if len(text) <= max_chars:
-            return text
-
-        # Keep first portion with truncation marker
-        return text[: max_chars - 20] + " [...TRUNCATED]"

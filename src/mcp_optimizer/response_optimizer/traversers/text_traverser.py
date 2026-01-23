@@ -44,7 +44,7 @@ class TextTraverser(BaseTraverser):
         self,
         content: str,
         max_tokens: int,
-        summarizer: Summarizer | None = None,
+        summarizer: Summarizer,
     ) -> TraversalResult:
         """Traverse unstructured text using head/tail extraction."""
         original_tokens = self.estimate_tokens(content)
@@ -72,38 +72,61 @@ class TextTraverser(BaseTraverser):
                 sections_summarized=1,
             )
 
-        # Extract head and tail
-        head = "\n".join(lines[: self.head_lines])
-        tail = "\n".join(lines[-self.tail_lines :])
-        middle = "\n".join(lines[self.head_lines : -self.tail_lines])
+        # Calculate budget for middle summary
+        overhead_tokens = 50  # For markers and formatting
+        min_summary_budget = 50  # Minimum tokens for meaningful summary
+
+        # Start with configured head/tail lines
+        current_head_lines = self.head_lines
+        current_tail_lines = self.tail_lines
+
+        # Extract initial sections
+        head = "\n".join(lines[:current_head_lines])
+        tail = "\n".join(lines[-current_tail_lines:])
 
         head_tokens = self.estimate_tokens(head)
         tail_tokens = self.estimate_tokens(tail)
-        middle_tokens = self.estimate_tokens(middle)
-        middle_lines = total_lines - self.head_lines - self.tail_lines
-
-        # Calculate budget for middle summary
-        overhead_tokens = 50  # For markers and formatting
         remaining_budget = max_tokens - head_tokens - tail_tokens - overhead_tokens
 
-        sections_summarized = 0
+        # If head + tail exceed budget, reduce lines to make room for middle summary
+        while remaining_budget < min_summary_budget and (
+            current_head_lines > 1 or current_tail_lines > 1
+        ):
+            # Reduce whichever is larger, favoring head reduction when equal
+            if current_head_lines >= current_tail_lines and current_head_lines > 1:
+                current_head_lines -= 1
+            elif current_tail_lines > 1:
+                current_tail_lines -= 1
 
-        if remaining_budget <= 0:
-            # Head + tail already exceeds budget, need to trim them
-            half_budget = (max_tokens - overhead_tokens) // 2
-            head = self._truncate_to_tokens(head, half_budget)
-            tail = self._truncate_to_tokens(tail, half_budget)
-            middle_summary = f"[...{middle_lines} lines omitted...]"
-            sections_summarized = 1
-        elif summarizer and remaining_budget >= 50:
-            # Have budget for summary
-            middle_summary = await summarizer.summarize(middle, remaining_budget)
-            middle_summary = f"[...{middle_lines} lines summarized:]\n{middle_summary}"
-            sections_summarized = 1
-        else:
-            # No summarizer or not enough budget, just indicate omission
-            middle_summary = f"[...{middle_lines} lines omitted ({middle_tokens} tokens)...]"
-            sections_summarized = 1
+            # Recalculate sections
+            head = "\n".join(lines[:current_head_lines])
+            tail = "\n".join(lines[-current_tail_lines:])
+            head_tokens = self.estimate_tokens(head)
+            tail_tokens = self.estimate_tokens(tail)
+            remaining_budget = max_tokens - head_tokens - tail_tokens - overhead_tokens
+
+        # Check if we still don't have enough budget even with minimal head/tail
+        if remaining_budget < min_summary_budget:
+            # Even 1 line head + 1 line tail exceeds budget, summarize everything
+            summary_budget = max(max_tokens - overhead_tokens, min_summary_budget)
+            full_summary = await summarizer.summarize(content, summary_budget)
+            result = f"[Full content summarized ({total_lines} lines):]\n{full_summary}"
+            return TraversalResult(
+                content=result,
+                original_tokens=original_tokens,
+                result_tokens=self.estimate_tokens(result),
+                sections_summarized=1,
+                metadata={
+                    "strategy": "full_summarization",
+                    "total_lines": total_lines,
+                },
+            )
+
+        # We have budget for middle summary with head/tail preservation
+        middle_lines = total_lines - current_head_lines - current_tail_lines
+        middle = "\n".join(lines[current_head_lines:-current_tail_lines])
+        middle_summary = await summarizer.summarize(middle, remaining_budget)
+        middle_summary = f"[...{middle_lines} lines summarized:]\n{middle_summary}"
 
         # Build result
         result = f"{head}\n\n{middle_summary}\n\n{tail}"
@@ -113,11 +136,13 @@ class TextTraverser(BaseTraverser):
             content=result,
             original_tokens=original_tokens,
             result_tokens=result_tokens,
-            sections_summarized=sections_summarized,
+            sections_summarized=1,
             metadata={
-                "head_lines": self.head_lines,
-                "tail_lines": self.tail_lines,
-                "middle_lines_omitted": middle_lines,
+                "head_lines_used": current_head_lines,
+                "tail_lines_used": current_tail_lines,
+                "head_lines_configured": self.head_lines,
+                "tail_lines_configured": self.tail_lines,
+                "middle_lines_summarized": middle_lines,
             },
         )
 

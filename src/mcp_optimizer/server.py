@@ -27,7 +27,6 @@ from mcp_optimizer.embeddings import EmbeddingManager
 from mcp_optimizer.install import McpServerInstaller
 from mcp_optimizer.mcp_client import MCPServerClient
 from mcp_optimizer.response_optimizer import QueryExecutionError, ResponseOptimizer, execute_query
-from mcp_optimizer.token_limiter import limit_tool_response
 from mcp_optimizer.toolhive.api_models.core import Workload
 from mcp_optimizer.toolhive.toolhive_client import ToolhiveClient
 
@@ -205,10 +204,12 @@ def initialize_server_components(config: MCPOptimizerConfig) -> None:
             token_threshold=config.response_optimizer_threshold,
             head_lines=config.response_head_lines,
             tail_lines=config.response_tail_lines,
+            summarizer_method=config.response_optimizer_method,
         )
         logger.info(
             "Response optimizer enabled",
             threshold=config.response_optimizer_threshold,
+            method=config.response_optimizer_method,
             kv_ttl=config.response_kv_ttl,
         )
 
@@ -524,91 +525,125 @@ async def search_registry(tool_description: str, tool_keywords: str) -> list[Too
         raise ToolDiscoveryError(f"Registry search failed: {e}") from e
 
 
+async def _optimize_single_text_content(
+    text_content: TextContent,
+    tool_name: str,
+    server_name: str,
+    max_tokens: int,
+) -> TextContent:
+    """Optimize a single TextContent item and store the original if optimized."""
+    if response_optimizer is None or _config is None:
+        return text_content
+
+    optimized = await response_optimizer.optimize(
+        content=text_content.text,
+        tool_name=tool_name,
+        max_tokens=max_tokens,
+    )
+
+    if optimized.was_optimized:
+        logger.info(
+            "Tool response text content was optimized",
+            tool_name=tool_name,
+            server_name=server_name,
+            original_tokens=optimized.token_metrics.baseline_tokens,
+            final_tokens=optimized.token_metrics.returned_tokens,
+            savings_percentage=f"{optimized.token_metrics.savings_percentage:.1f}%",
+            content_type=optimized.content_type.value,
+        )
+
+        # Store original in KV store if tool_response_ops is available
+        if tool_response_ops is not None:
+            await tool_response_ops.create_tool_response(
+                tool_name=tool_name,
+                original_content=text_content.text,
+                content_type=optimized.content_type,
+                response_id=optimized.response_id,
+                session_key=optimized.session_key,
+                ttl_seconds=_config.response_kv_ttl,
+                metadata={
+                    "server_name": server_name,
+                },
+            )
+
+    return TextContent(type="text", text=optimized.model_dump_json(indent=2))
+
+
+def _log_content_warnings(
+    tool_name: str,
+    server_name: str,
+    text_content_count: int,
+    non_text_content_count: int,
+) -> None:
+    """Log warnings about unexpected content types in tool response."""
+    total_contents = text_content_count + non_text_content_count
+
+    # Warn if there are multiple contents (most tool calls should return single TextContent)
+    if total_contents > 1:
+        logger.warning(
+            "Tool response contains multiple content items, expected single TextContent",
+            tool_name=tool_name,
+            server_name=server_name,
+            total_contents=total_contents,
+            text_contents=text_content_count,
+            non_text_contents=non_text_content_count,
+        )
+
+    # Warn if there are non-text contents (we cannot summarize them)
+    if non_text_content_count > 0:
+        logger.warning(
+            "Tool response contains non-TextContent items which cannot be summarized",
+            tool_name=tool_name,
+            server_name=server_name,
+            non_text_contents=non_text_content_count,
+        )
+
+
 async def _apply_response_optimization(
     tool_result: CallToolResult,
     tool_name: str,
     server_name: str,
 ) -> CallToolResult:
-    """Apply response optimization or token limiting to a tool result.
+    """Apply response optimization to a tool result.
 
-    Only TextContent items are optimized. Other content types (images, etc.)
-    are left untouched and returned as-is.
+    Each TextContent item is optimized individually with an equal share of the
+    max token budget. Other content types (images, etc.) are left untouched
+    and returned in their original positions.
     """
     if _config is None:
         return tool_result
 
-    # Apply response optimization if enabled (takes precedence over simple limiting)
+    # Apply response optimization if enabled
     if _config.response_optimizer_enabled and response_optimizer is not None:
-        # Extract text content from the result - only TextContent is optimized
-        text_contents = [c for c in tool_result.content if isinstance(c, TextContent)]
-        # Keep non-text content unchanged (images, etc.)
-        non_text_contents = [c for c in tool_result.content if not isinstance(c, TextContent)]
+        # Count text and non-text contents
+        text_content_count = sum(1 for c in tool_result.content if isinstance(c, TextContent))
+        non_text_content_count = len(tool_result.content) - text_content_count
 
-        if text_contents:
-            # Combine all text content for optimization
-            combined_text = "\n".join(c.text for c in text_contents)
+        _log_content_warnings(tool_name, server_name, text_content_count, non_text_content_count)
 
-            # Optimize the response
-            optimized = await response_optimizer.optimize(
-                content=combined_text,
-                tool_name=tool_name,
-                max_tokens=_config.response_optimizer_threshold,
-            )
+        # If no text contents, return as-is
+        if text_content_count == 0:
+            return tool_result
 
-            if optimized.was_optimized:
-                logger.info(
-                    "Tool response was optimized",
-                    tool_name=tool_name,
-                    server_name=server_name,
-                    original_tokens=optimized.token_metrics.baseline_tokens,
-                    final_tokens=optimized.token_metrics.returned_tokens,
-                    savings_percentage=f"{optimized.token_metrics.savings_percentage:.1f}%",
-                    content_type=optimized.content_type.value,
+        # Calculate max tokens per text content (divide equally)
+        tokens_per_content = _config.response_optimizer_threshold // text_content_count
+
+        # Process each content item, preserving original order
+        optimized_contents = []
+        for content in tool_result.content:
+            if isinstance(content, TextContent):
+                optimized_text = await _optimize_single_text_content(
+                    content, tool_name, server_name, tokens_per_content
                 )
+                optimized_contents.append(optimized_text)
+            else:
+                # Non-text content - preserve as-is in original position
+                optimized_contents.append(content)
 
-                # Store original in KV store if tool_response_ops is available
-                if tool_response_ops is not None:
-                    await tool_response_ops.create_tool_response(
-                        tool_name=tool_name,
-                        original_content=combined_text,
-                        content_type=optimized.content_type,
-                        session_key=optimized.session_key,
-                        ttl_seconds=_config.response_kv_ttl,
-                        metadata={
-                            "server_name": server_name,
-                            "response_id": optimized.response_id,
-                        },
-                    )
-
-            # Always return structured response for text content (optimized or not)
-            # Serialize the full OptimizedResponse so LLM has access to metadata
-            optimized_content = TextContent(type="text", text=optimized.model_dump_json(indent=2))
-            # Combine: structured text content first, then non-text content unchanged
-            tool_result.content = [optimized_content] + non_text_contents
-
+        tool_result.content = optimized_contents
         return tool_result
 
-    # Fall back to simple token limiting if configured (legacy behavior)
-    if _config.max_tool_response_tokens is not None:
-        limited = limit_tool_response(tool_result, _config.max_tool_response_tokens)
-
-        if limited.was_truncated:
-            logger.warning(
-                "Tool response was truncated due to token limit",
-                tool_name=tool_name,
-                server_name=server_name,
-                original_tokens=limited.original_tokens,
-                final_tokens=limited.final_tokens,
-                max_tokens=_config.max_tool_response_tokens,
-            )
-
-            # Prepend truncation message to the response content
-            truncation_notice = TextContent(type="text", text=limited.truncation_message or "")
-            limited.result.content.insert(0, truncation_notice)
-
-        return limited.result
-
-    # No optimization or token limiting configured, return result as-is
+    # No optimization configured, return result as-is
     return tool_result
 
 

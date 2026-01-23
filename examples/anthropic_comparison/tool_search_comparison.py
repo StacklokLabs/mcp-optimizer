@@ -3,10 +3,11 @@ import os
 from pathlib import Path
 
 import click
-from comparison_orchestrator import ComparisonOrchestrator
-from results_exporter import ResultsExporter
 
 from mcp_optimizer.configure_logging import configure_logging
+
+from .comparison_orchestrator import ComparisonOrchestrator
+from .results_exporter import ResultsExporter
 
 
 @click.command()

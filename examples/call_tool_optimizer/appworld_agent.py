@@ -4,18 +4,17 @@ This module follows the pattern from examples/anthropic_comparison/mcp_optimizer
 but extends it to include call_tool and search_in_tool_response tools.
 """
 
-import json
 import os
 import time
 from pathlib import Path
 
 import structlog
-from models import ExperimentConfig
 from pydantic_ai import Agent
 from pydantic_ai.agent import AgentRunResult
-from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
+from pydantic_ai.messages import ModelResponse, ToolCallPart
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openrouter import OpenRouterProvider
+from pydantic_ai.usage import UsageLimits
 
 from mcp_optimizer.config import MCPOptimizerConfig
 from mcp_optimizer.db.config import DatabaseConfig
@@ -25,6 +24,9 @@ from mcp_optimizer.db.workload_tool_ops import WorkloadToolOps
 from mcp_optimizer.embeddings import EmbeddingManager
 from mcp_optimizer.response_optimizer import ResponseOptimizer
 from mcp_optimizer.server import call_tool, find_tool, search_in_tool_response
+
+from .agent_messsge_processing import serialize_agent_messages
+from .models import ExperimentConfig
 
 logger = structlog.get_logger(__name__)
 
@@ -45,13 +47,21 @@ Workflow:
 3. Select the most appropriate tool from the results
 4. Use call_tool to execute the tool with the required parameters
 5. If the response was optimized (has response_id), use search_in_tool_response for details
-6. Continue calling tools until the task is complete
+6. Continue calling tools until the task is complete. Use the tool complete_task with the final
+answer.
+
+If the task requires specific information, there are supervisor tools available via find_tool.
+- Show profile: retrieves the supervisor's profile information
+- Show account passwords: retrieves the supervisor's account passwords
+- Show payment cards: retrieves the supervisor's payment methods
+- Show addresses: retrieves the supervisor's saved addresses
+- Complete task: marks the task as complete with the final answer
 
 Important:
 - Always use find_tool first to discover available tools
 - Use the exact server_name and tool_name from find_tool results when calling tools
 - Check response structure - if it contains response_id, the response was optimized
-- Follow the task instructions precisely to complete the objective
+- Follow the task instructions precisely to complete the objective and mark the task complete
 """
 
 
@@ -164,7 +174,10 @@ class AppWorldAgentRunner:
 
         try:
             # Run agent with task instruction
-            result = await self.agent.run(instruction)
+            result = await self.agent.run(
+                instruction,
+                usage_limits=UsageLimits(request_limit=self.config.max_agent_steps),
+            )
 
             execution_time = time.perf_counter() - start_time
 
@@ -175,7 +188,7 @@ class AppWorldAgentRunner:
             usage = result.usage()
 
             return {
-                "messages": self._serialize_messages(result),
+                "messages": serialize_agent_messages(result),
                 "tool_calls": tool_stats,
                 "final_response": str(result.output) if result.output else None,
                 "execution_time_s": execution_time,
@@ -227,69 +240,3 @@ class AppWorldAgentRunner:
                             stats["total"] += 1
 
         return stats
-
-    def _serialize_messages(self, result: AgentRunResult) -> list[dict]:
-        """Serialize agent messages for storage.
-
-        Args:
-            result: Agent run result
-
-        Returns:
-            List of serialized message dictionaries
-        """
-        messages = []
-
-        for message in result.all_messages():
-            if isinstance(message, ModelResponse):
-                msg_data = {
-                    "type": "model_response",
-                    "parts": [],
-                }
-                for part in message.parts:
-                    if isinstance(part, ToolCallPart):
-                        msg_data["parts"].append(
-                            {
-                                "type": "tool_call",
-                                "tool_name": part.tool_name,
-                                "args": json.loads(part.args)
-                                if isinstance(part.args, str)
-                                else part.args,
-                            }
-                        )
-                    else:
-                        msg_data["parts"].append(
-                            {
-                                "type": "text",
-                                "content": str(part),
-                            }
-                        )
-                messages.append(msg_data)
-
-            elif isinstance(message, ModelRequest):
-                msg_data = {
-                    "type": "model_request",
-                    "parts": [],
-                }
-                for part in message.parts:
-                    if isinstance(part, ToolReturnPart):
-                        # Truncate long tool returns for storage
-                        content = str(part.content)
-                        if len(content) > 1000:
-                            content = content[:1000] + "..."
-                        msg_data["parts"].append(
-                            {
-                                "type": "tool_return",
-                                "tool_name": part.tool_name,
-                                "content": content,
-                            }
-                        )
-                    else:
-                        msg_data["parts"].append(
-                            {
-                                "type": "other",
-                                "content": str(part)[:500],
-                            }
-                        )
-                messages.append(msg_data)
-
-        return messages

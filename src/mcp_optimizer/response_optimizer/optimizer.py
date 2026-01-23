@@ -1,6 +1,7 @@
 """Main response optimizer that orchestrates the optimization pipeline."""
 
 import uuid
+from typing import Literal
 
 import structlog
 
@@ -10,19 +11,16 @@ from mcp_optimizer.response_optimizer.hints import generate_query_hints
 from mcp_optimizer.response_optimizer.models import ContentType, OptimizedResponse
 from mcp_optimizer.response_optimizer.summarizers.base import BaseSummarizer
 from mcp_optimizer.response_optimizer.summarizers.llmlingua import LLMLinguaSummarizer
+from mcp_optimizer.response_optimizer.summarizers.truncation import TruncationSummarizer
+from mcp_optimizer.response_optimizer.token_counter import TokenCounter, estimate_tokens
 from mcp_optimizer.response_optimizer.traversers.base import BaseTraverser
 from mcp_optimizer.response_optimizer.traversers.json_traverser import JsonTraverser
 from mcp_optimizer.response_optimizer.traversers.markdown_traverser import MarkdownTraverser
 from mcp_optimizer.response_optimizer.traversers.text_traverser import TextTraverser
-from mcp_optimizer.token_counter import TokenCounter
 
 logger = structlog.get_logger(__name__)
 
-
-def _estimate_tokens(text: str) -> int:
-    """Default token estimation using character-based approximation."""
-    # Rough estimate: ~4 characters per token
-    return len(text) // 4
+SummarizerMethod = Literal["llmlingua", "truncation"]
 
 
 class ResponseOptimizer:
@@ -44,6 +42,7 @@ class ResponseOptimizer:
         head_lines: int = 20,
         tail_lines: int = 20,
         token_counter: TokenCounter | None = None,
+        summarizer_method: SummarizerMethod = "llmlingua",
     ):
         """
         Initialize the response optimizer.
@@ -53,6 +52,8 @@ class ResponseOptimizer:
             head_lines: Lines to preserve from start for text content
             tail_lines: Lines to preserve from end for text content
             token_counter: Optional token counter for accurate counts
+            summarizer_method: Method for summarization ("llmlingua" or "truncation").
+                If "llmlingua" is selected but unavailable, falls back to "truncation".
         """
         self.token_threshold = token_threshold
         self.head_lines = head_lines
@@ -62,15 +63,41 @@ class ResponseOptimizer:
         if token_counter:
             self._estimate_tokens = token_counter.count_tokens
         else:
-            self._estimate_tokens = _estimate_tokens
+            self._estimate_tokens = estimate_tokens
 
-        # Initialize summarizer
-        self._summarizer: BaseSummarizer = LLMLinguaSummarizer()
+        # Initialize summarizer based on method with fallback
+        self._summarizer = self._create_summarizer(summarizer_method)
 
         # Initialize traversers (lazy)
         self._json_traverser: JsonTraverser | None = None
         self._markdown_traverser: MarkdownTraverser | None = None
         self._text_traverser: TextTraverser | None = None
+
+    def _create_summarizer(self, method: SummarizerMethod) -> BaseSummarizer:
+        """Create the appropriate summarizer based on method with fallback.
+
+        Args:
+            method: The requested summarization method
+
+        Returns:
+            A summarizer instance (LLMLingua if available, otherwise Truncation)
+        """
+        if method == "truncation":
+            logger.info("Using truncation summarizer as configured")
+            return TruncationSummarizer()
+
+        # Try to use LLMLingua
+        llmlingua = LLMLinguaSummarizer()
+        if llmlingua.is_available():
+            logger.info("Using LLMLingua summarizer")
+            return llmlingua
+
+        # Fall back to truncation with warning
+        logger.warning(
+            "LLMLingua model not available, falling back to truncation summarizer. "
+            "To use LLMLingua, ensure the ONNX model is installed at the configured path."
+        )
+        return TruncationSummarizer()
 
     def _get_traverser(self, content_type: ContentType) -> BaseTraverser:
         """Get the appropriate traverser for the content type."""
@@ -161,14 +188,11 @@ class ResponseOptimizer:
         # Get appropriate traverser
         traverser = self._get_traverser(content_type)
 
-        # Get summarizer if available
-        summarizer = self._summarizer if self._summarizer.is_available() else None
-
         # Traverse and compress
         result = await traverser.traverse(
             content=content,
             max_tokens=threshold,
-            summarizer=summarizer,
+            summarizer=self._summarizer,
         )
 
         # Generate query hints

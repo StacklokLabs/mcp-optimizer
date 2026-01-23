@@ -4,36 +4,28 @@ tasks:
   install:
     desc: Install dependencies
     cmds:
-      - uv sync --dev --all-packages --group security --group examples
+      - uv sync --dev --all-packages --group security
 
   lint:
     desc: Run linting with ruff
     cmds:
       - uv run ruff check .
-    deps:
-      - install
 
   format:
     desc: Fix linting issues and format code
     cmds:
       - uv run ruff format .
       - uv run ruff check --fix .
-    deps:
-      - install
 
   typecheck:
     desc: Run type checking with ty
     cmds:
       - uv run ty check .
-    deps:
-      - install
 
   test:
     desc: Run unit tests with pytest
     cmds:
       - uv run pytest
-    deps:
-      - install
 
   check:
     desc: Run all checks (lint, typecheck, tests, and security)
@@ -51,29 +43,21 @@ tasks:
       - uv run pip-audit --ignore-vuln CVE-2026-0994
       - uv run bandit -r src/ -f json -o bandit-report.json || true
       - uv run pip-audit --ignore-vuln CVE-2026-0994 --format=json --output=pip-audit-report.json || true
-    deps:
-      - install
 
   sbom:
     desc: Generate Software Bill of Materials (SBOM)
     cmds:
       - uv run cyclonedx-py environment --output-format json --output-file sbom.json
-    deps:
-      - install
 
   generate-thv-models:
     desc: Generate Pydantic models from Toolhive's OpenAPI specification
     cmds:
       - ./scripts/generate_toolhive_models.sh
-    deps:
-      - install
 
   run-migrations:
     desc: Run database migrations
     cmds:
       - uv run alembic upgrade head
-    deps:
-      - install
 
   download-models:
     desc: Download ML models for offline/airgapped deployments
@@ -115,8 +99,6 @@ tasks:
       TOOLHIVE_PORT: "8080"
     cmds:
       - uv run mcpo
-    deps:
-      - install
 
   run-in-thv:
     desc: Build mcp-optimizer and run it in ToolHive
@@ -148,13 +130,24 @@ tasks:
       - ./examples/mcp-servers/status-mcp-servers.sh
 
   appworld-install:
-    desc: Install AppWorld data (installs from source)
+    desc: Install AppWorld data (installs from source).
+      Installing from source requires Git LFS.
+      If it is installed and fails try cleaning uv cache with `rm -rf $(uv cache dir)/git-v0` and re-running.
+      Reference - https://github.com/astral-sh/uv/issues/14173
+    env:
+      UV_GIT_LFS: "1"
     cmds:
-      - uv pip install pip
-      - uv run pip install git+https://github.com/StacklokLabs/appworld.git
+      - uv sync --dev --all-packages --group security --group examples
       - uv run appworld install
-      - uv run appworld download data
+      - task: appworld-download-data
       - uv run appworld --version
+
+  appworld-download-data:
+    desc: Download AppWorld data if not present
+    status:
+      - test -d ./data
+    cmds:
+      - uv run appworld download data
 
   appworld-serve-api:
     desc: Start AppWorld API server (port 9000) in isolated environment. Downloads base DBs if not present.
@@ -168,7 +161,6 @@ tasks:
       - uv run appworld serve mcp http --remote-apis-url http://localhost:9000 --port 10000
 
   appworld-experiment:
-    desc: Run AppWorld experiment (requires servers running)
+    desc: Run AppWorld experiment (requires servers running, run `task local-dev` first)
     cmds:
       - uv run python examples/call_tool_optimizer/run_experiment.py {{.CLI_ARGS}}
-

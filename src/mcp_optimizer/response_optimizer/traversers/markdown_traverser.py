@@ -39,7 +39,7 @@ class MarkdownTraverser(BaseTraverser):
         self,
         content: str,
         max_tokens: int,
-        summarizer: Summarizer | None = None,
+        summarizer: Summarizer,
     ) -> TraversalResult:
         """Traverse Markdown content using breadth-first expansion."""
         original_tokens = self.estimate_tokens(content)
@@ -145,7 +145,7 @@ class MarkdownTraverser(BaseTraverser):
         self,
         sections: list[Section],
         max_tokens: int,
-        summarizer: Summarizer | None,
+        summarizer: Summarizer,
     ) -> tuple[str, int]:
         """Build output using breadth-first expansion."""
         sections_summarized = 0
@@ -186,21 +186,12 @@ class MarkdownTraverser(BaseTraverser):
                         section_output = self._format_section_with_content(section)
                         output_parts.append(section_output)
                         remaining_budget -= self.estimate_tokens(section_output)
-                    elif summarizer:
+                    else:
                         # Summarize content
                         summarized = await summarizer.summarize(
                             section.content, remaining_budget // 2
                         )
                         section_output = self._format_section_with_summary(section, summarized)
-                        output_parts.append(section_output)
-                        remaining_budget -= self.estimate_tokens(section_output)
-                        sections_summarized += 1
-                    else:
-                        # Truncate
-                        truncated = self._truncate_content(section.content, remaining_budget // 2)
-                        section_output = self._format_section_with_summary(
-                            section, truncated + " [TRUNCATED]"
-                        )
                         output_parts.append(section_output)
                         remaining_budget -= self.estimate_tokens(section_output)
                         sections_summarized += 1
@@ -249,10 +240,3 @@ class MarkdownTraverser(BaseTraverser):
         if header:
             return f"{header}\n\n[SUMMARIZED]\n{summary}"
         return f"[SUMMARIZED]\n{summary}"
-
-    def _truncate_content(self, content: str, max_tokens: int) -> str:
-        """Truncate content to fit within budget."""
-        max_chars = max_tokens * 4
-        if len(content) <= max_chars:
-            return content
-        return content[: max_chars - 20]

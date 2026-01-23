@@ -38,7 +38,7 @@ class BaseTraverser(ABC):
         self,
         content: str,
         max_tokens: int,
-        summarizer: Summarizer | None = None,
+        summarizer: Summarizer,
     ) -> TraversalResult:
         """
         Traverse and compress content to fit within token budget.
@@ -46,7 +46,7 @@ class BaseTraverser(ABC):
         Args:
             content: The content to traverse
             max_tokens: Maximum tokens for the result
-            summarizer: Optional summarizer for compressing sections
+            summarizer: Summarizer for compressing sections
 
         Returns:
             TraversalResult with compressed content and metadata

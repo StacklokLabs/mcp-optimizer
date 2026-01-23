@@ -12,6 +12,10 @@ wheels/
 # Local configuration files
 *.local*
 
+# Environment files (keep .env.example)
+.env
+.env.local
+
 # Database files
 *.db
 
@@ -36,6 +40,8 @@ models/
 
 # AppWorld data
 data/
+experiments/
+conversations/
 
 # ONNX models (too large for git)
 src/mcp_optimizer/response_optimizer/models/

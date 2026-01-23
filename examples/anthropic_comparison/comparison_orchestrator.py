@@ -8,10 +8,11 @@ from pathlib import Path
 import structlog
 from mcp_optimizer_agent import McpOptimizerAgentRunner
 from metrics import MetricsComputer
-from models import ComparisonReport, ComparisonResult, TestCase, TestDataset
 from native_approach import NativeApproachRunner
 from results_exporter import ResultsExporter
 from tool_converter import ToolConverter
+
+from .models import ComparisonReport, ComparisonResult, TestCase, TestDataset
 
 logger = structlog.get_logger(__name__)
 

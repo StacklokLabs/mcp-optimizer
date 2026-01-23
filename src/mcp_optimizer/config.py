@@ -221,23 +221,19 @@ class MCPOptimizerConfig(BaseModel):
         description="Batch size for parallel workload ingestion (1-50)",
     )
 
-    # Tool response limiting configuration (legacy - simple truncation)
-    max_tool_response_tokens: int | None = Field(
-        default=None,
-        ge=100,
-        le=100000,
-        description="Maximum number of tokens to return from tool calls (100-100000). "
-        "Set to None to disable token limiting. "
-        "Responses exceeding this limit will be truncated or sampled. "
-        "Note: This is the legacy simple truncation. Use response_optimizer_enabled for "
-        "intelligent summarization.",
-    )
-
-    # Response optimizer configuration (advanced - intelligent summarization)
+    # Response optimizer configuration
     response_optimizer_enabled: bool = Field(
         default=False,
         description="Enable intelligent response optimization using structure-aware traversal "
-        "and LLMLingua-2 summarization. When enabled, max_tool_response_tokens is ignored.",
+        "and summarization.",
+    )
+
+    response_optimizer_method: Literal["llmlingua", "truncation"] = Field(
+        default="llmlingua",
+        description="Method for summarizing content during response optimization. "
+        "'llmlingua' uses LLMLingua-2 for intelligent compression (requires ONNX model). "
+        "'truncation' uses simple token truncation (always available). "
+        "If 'llmlingua' is selected but unavailable, falls back to 'truncation' with a warning.",
     )
 
     response_optimizer_threshold: int = Field(
@@ -594,8 +590,8 @@ def _populate_config_from_env() -> dict[str, Any]:
         "TOOLHIVE_SKIP_BACKOFF": "toolhive_skip_backoff",
         "REGISTRY_INGESTION_BATCH_SIZE": "registry_ingestion_batch_size",
         "WORKLOAD_INGESTION_BATCH_SIZE": "workload_ingestion_batch_size",
-        "MAX_TOOL_RESPONSE_TOKENS": "max_tool_response_tokens",
         "RESPONSE_OPTIMIZER_ENABLED": "response_optimizer_enabled",
+        "RESPONSE_OPTIMIZER_METHOD": "response_optimizer_method",
         "RESPONSE_OPTIMIZER_THRESHOLD": "response_optimizer_threshold",
         "RESPONSE_KV_TTL": "response_kv_ttl",
         "RESPONSE_HEAD_LINES": "response_head_lines",

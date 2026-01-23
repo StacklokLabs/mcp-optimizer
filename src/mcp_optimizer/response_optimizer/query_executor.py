@@ -2,7 +2,7 @@
 
 import re
 import shutil
-import subprocess
+import subprocess  # nosec B404 - subprocess used for trusted jq tool only
 
 from mcp_optimizer.response_optimizer.models import ContentType
 
@@ -37,7 +37,7 @@ def execute_jq_query(content: str, query: str) -> str:
         )
 
     try:
-        result = subprocess.run(  # noqa: S603 - jq is a trusted tool
+        result = subprocess.run(  # noqa: S603 # nosec B603 - jq is a trusted tool, path validated
             [jq_path, query],
             input=content,
             capture_output=True,

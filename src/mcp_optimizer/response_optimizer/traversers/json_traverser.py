@@ -22,7 +22,7 @@ class JsonTraverser(BaseTraverser):
         self,
         content: str,
         max_tokens: int,
-        summarizer: Summarizer | None = None,
+        summarizer: Summarizer,
     ) -> TraversalResult:
         """Traverse JSON content using breadth-first expansion."""
         original_tokens = self.estimate_tokens(content)
@@ -66,7 +66,7 @@ class JsonTraverser(BaseTraverser):
         self,
         value: Any,
         budget: int,
-        summarizer: Summarizer | None,
+        summarizer: Summarizer,
         depth: int,
     ) -> tuple[Any, int]:
         """
@@ -82,12 +82,9 @@ class JsonTraverser(BaseTraverser):
         elif isinstance(value, str):
             # Check if string is too long
             value_tokens = self.estimate_tokens(value)
-            if value_tokens > budget and summarizer:
+            if value_tokens > budget:
                 summarized = await summarizer.summarize(value, budget)
                 return summarized, 1
-            elif value_tokens > budget:
-                # Truncate string
-                return self._truncate_string(value, budget), 1
             return value, 0
         else:
             # Primitive types (int, float, bool, None)
@@ -97,7 +94,7 @@ class JsonTraverser(BaseTraverser):
         self,
         obj: dict,
         budget: int,
-        summarizer: Summarizer | None,
+        summarizer: Summarizer,
         depth: int,
     ) -> tuple[dict, int]:
         """Traverse a dictionary with breadth-first expansion."""
@@ -151,7 +148,7 @@ class JsonTraverser(BaseTraverser):
         self,
         arr: list,
         budget: int,
-        summarizer: Summarizer | None,
+        summarizer: Summarizer,
         depth: int,
     ) -> tuple[list, int]:
         """Traverse a list with breadth-first expansion."""
@@ -227,11 +224,3 @@ class JsonTraverser(BaseTraverser):
         elif isinstance(item, (int, float, bool)):
             return str(item)
         return None
-
-    def _truncate_string(self, s: str, max_tokens: int) -> str:
-        """Truncate a string to fit within token budget."""
-        # Rough estimate: 4 chars per token
-        max_chars = max_tokens * 4
-        if len(s) <= max_chars:
-            return s
-        return s[: max_chars - 20] + "... [TRUNCATED]"

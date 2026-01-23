@@ -28,6 +28,7 @@ class ToolResponseOps:
         tool_name: str,
         original_content: str,
         content_type: ContentType,
+        response_id: str | None = None,
         session_key: str | None = None,
         ttl_seconds: int = 300,
         metadata: dict | None = None,
@@ -40,6 +41,7 @@ class ToolResponseOps:
             tool_name: Name of the tool that generated the response
             original_content: The original unmodified content
             content_type: The detected content type
+            response_id: Optional response ID. If not provided, a new UUID is generated.
             session_key: Optional session key for grouping related responses.
                         If not provided, defaults to the response_id.
             ttl_seconds: Time-to-live in seconds (default: 5 minutes)
@@ -49,7 +51,8 @@ class ToolResponseOps:
         Returns:
             The stored tool response with generated ID
         """
-        response_id = str(uuid.uuid4())
+        if response_id is None:
+            response_id = str(uuid.uuid4())
         # Default session_key to response_id if not provided
         actual_session_key = session_key if session_key is not None else response_id
         now = datetime.now(timezone.utc)
@@ -61,7 +64,7 @@ class ToolResponseOps:
              created_at, expires_at, metadata)
             VALUES (:id, :session_key, :tool_name, :original_content, :content_type,
                     :created_at, :expires_at, :metadata)
-        """
+        """  # nosec B608 - TABLE_NAME is a code-controlled constant, not user input
 
         params = {
             "id": response_id,
@@ -119,7 +122,7 @@ class ToolResponseOps:
                    created_at, expires_at, metadata
             FROM {self.TABLE_NAME}
             WHERE id = :id
-        """
+        """  # nosec B608 - TABLE_NAME is a code-controlled constant, not user input
 
         results = await self.db.execute_query(query, {"id": response_id}, conn=conn)
 
@@ -168,7 +171,7 @@ class ToolResponseOps:
             FROM {self.TABLE_NAME}
             WHERE session_key = :session_key AND expires_at > :now
             ORDER BY created_at DESC
-        """
+        """  # nosec B608 - TABLE_NAME is a code-controlled constant, not user input
 
         results = await self.db.execute_query(
             query, {"session_key": session_key, "now": now}, conn=conn
@@ -206,14 +209,14 @@ class ToolResponseOps:
         # First count how many will be deleted
         count_query = f"""
             SELECT COUNT(*) FROM {self.TABLE_NAME} WHERE expires_at <= :now
-        """
+        """  # nosec B608 - TABLE_NAME is a code-controlled constant, not user input
         result = await self.db.execute_query(count_query, {"now": now}, conn=conn)
         count = result[0][0] if result else 0
 
         # Then delete
         delete_query = f"""
             DELETE FROM {self.TABLE_NAME} WHERE expires_at <= :now
-        """
+        """  # nosec B608 - TABLE_NAME is a code-controlled constant, not user input
         await self.db.execute_non_query(delete_query, {"now": now}, conn=conn)
 
         if count > 0:
@@ -227,5 +230,5 @@ class ToolResponseOps:
         conn: AsyncConnection | None = None,
     ) -> None:
         """Delete a single response by ID."""
-        query = f"DELETE FROM {self.TABLE_NAME} WHERE id = :id"
+        query = f"DELETE FROM {self.TABLE_NAME} WHERE id = :id"  # nosec B608
         await self.db.execute_non_query(query, {"id": response_id}, conn=conn)

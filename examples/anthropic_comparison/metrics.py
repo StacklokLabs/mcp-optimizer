@@ -5,7 +5,8 @@ from pathlib import Path
 
 import click
 import structlog
-from models import (
+
+from .models import (
     AggregateMetrics,
     ComparisonReport,
     ComparisonResult,
@@ -13,7 +14,7 @@ from models import (
     NativeSearchResult,
     TestCase,
 )
-from results_exporter import ResultsExporter
+from .results_exporter import ResultsExporter
 
 logger = structlog.get_logger(__name__)
 

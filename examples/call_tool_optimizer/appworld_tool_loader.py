@@ -18,7 +18,7 @@ from mcp_optimizer.db.workload_tool_ops import WorkloadToolOps
 from mcp_optimizer.embeddings import EmbeddingManager
 from mcp_optimizer.ingestion import IngestionService
 from mcp_optimizer.mcp_client import MCPServerClient
-from mcp_optimizer.token_counter import TokenCounter
+from mcp_optimizer.response_optimizer.token_counter import TokenCounter
 from mcp_optimizer.toolhive.api_models.core import Workload
 
 logger = structlog.get_logger(__name__)
@@ -42,6 +42,8 @@ class AppWorldToolLoader:
             embedding_model: Embedding model to use
             mcp_timeout: Timeout for MCP operations in seconds
         """
+        if not appworld_mcp_url.endswith("/mcp"):
+            appworld_mcp_url += "/mcp"
         self.appworld_mcp_url = appworld_mcp_url
         self.db_path = db_path
         self.embedding_model = embedding_model
@@ -171,7 +173,7 @@ class AppWorldToolLoader:
                     url=self.appworld_mcp_url,
                     workload_identifier="appworld-mcp",
                     remote=False,
-                    transport=TransportType.STREAMABLE_HTTP,
+                    transport=TransportType.STREAMABLE,
                     status=McpStatus.RUNNING,
                     description="AppWorld MCP server with 457 APIs across 9 applications",
                     conn=conn,

@@ -32,46 +32,38 @@ Run experiments against AppWorld tasks using MCP Optimizer tools (`find_tool`, `
 
 ```bash
 # Run new experiment (limited to 5 tasks)
-task appworld-experiment -- --experiment-name test1 --dataset train --limit 5
-
-# Or using uv directly:
-uv run python examples/call_tool_optimizer/run_experiment.py \
-    --experiment-name test1 --dataset train --limit 5
-
-# Resume interrupted experiment
-uv run python examples/call_tool_optimizer/run_experiment.py \
-    --experiment-name test1 --resume
+task appworld-experiment -- --limit 5
 
 # Run with custom settings
-uv run python examples/call_tool_optimizer/run_experiment.py \
-    --experiment-name test2 --dataset dev \
-    --model anthropic/claude-opus-4 --threshold 500 --verbose
+task appworld-experiment -- --model anthropic/claude-opus-4 --threshold 500 --verbose
 ```
 
 ### CLI Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--experiment-name` | Name for this experiment run (required) | - |
+| `--experiment-name` | Name for experiment (auto-generated if not provided, auto-resumes matching config) | (auto) |
 | `--dataset` | AppWorld dataset (train, dev, test_normal, test_challenge) | train |
 | `--limit` | Limit number of tasks to run | all |
 | `--model` | LLM model for the agent (OpenRouter format) | anthropic/claude-sonnet-4 |
 | `--threshold` | Token threshold for response optimization | 1000 |
-| `--head-lines` | Lines to preserve from start for text | 20 |
-| `--tail-lines` | Lines to preserve from end for text | 20 |
+| `--head-lines` | Lines to preserve from start for unstructured text | 20 |
+| `--tail-lines` | Lines to preserve from end for unstructured text | 20 |
 | `--max-steps` | Maximum agent steps per task | 50 |
 | `--appworld-mcp-url` | AppWorld MCP server URL | http://localhost:10000 |
-| `--state-file` | Path to state file for resume | {experiment_name}_state.json |
-| `--output` | Path to results file | {experiment_name}_results.json |
-| `--db-path` | Path to database file | {experiment_name}.db |
-| `--resume` | Resume from existing state | False |
-| `--verbose` | Enable debug logging | False |
+| `--appworld-api-url` | AppWorld API server URL for remote_apis_url | http://localhost:9000 |
+| `--state-file` | Path to state file | {experiment_name}_state.json |
+| `--output` | Path to output results file | {experiment_name}_results.json |
+| `--db-path` | Path to database file (shared across experiments) | experiments_shared.db |
+| `--force` | Delete existing state file and start fresh (does not delete shared database) | False |
+| `--baseline` | Run baseline agent using direct MCP (ignores optimizer-specific options) | False |
+| `--verbose` | Enable verbose output (debug logging) | False |
 
 ### Output Files
 
 - **State file** (`{name}_state.json`): Tracks progress for resume capability
 - **Results file** (`{name}_results.json`): Aggregated experiment results
-- **Database** (`{name}.db`): MCP Optimizer database with ingested tools
+- **Database** (`experiments_shared.db`): MCP Optimizer database with ingested tools (shared across experiments)
 
 ### Experiment Flow
 
@@ -119,17 +111,10 @@ The experiment includes three sample responses in `sample_responses.py`:
 
 ### ONNX Model
 
-The LLMLingua-2 summarizer requires an ONNX model. To export:
+The LLMLingua-2 summarizer requires an ONNX model. To download:
 
 ```bash
-# Install optimum for export (dev dependency)
-uv sync --group dev
-
-# Export model to ONNX
-optimum-cli export onnx \
-  --model microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank \
-  --task token-classification \
-  src/mcp_optimizer/response_optimizer/models/llmlingua2-onnx/
+task download-models
 ```
 
 If the model is not available, the optimizer falls back to simple truncation.

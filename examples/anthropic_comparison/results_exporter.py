@@ -6,10 +6,11 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import structlog
-from models import ComparisonReport
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+
+from .models import ComparisonReport
 
 logger = structlog.get_logger(__name__)
 

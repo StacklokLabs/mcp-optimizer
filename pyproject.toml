@@ -44,7 +44,11 @@ examples = [
     "anthropic>=0.76.0",
     "pydantic-ai>=1.47.0",
     "matplotlib>=3.10.8",
+    "python-dotenv>=1.0.0",
     "rich>=14.3.1",
+    "appworld",
+    "torch>=2.10.0",
+    "torchvision>=0.25.0",
 ]
 offline-models = [
     "optimum[onnxruntime]>=2.1.0",
@@ -58,6 +62,7 @@ build-backend = "hatchling.build"
 
 [tool.uv.sources]
 mcp-optimizer = { workspace = true }
+appworld = { git = "https://github.com/StacklokLabs/appworld" }
 
 [project.scripts]
 mcpo = "mcp_optimizer.cli:main"
