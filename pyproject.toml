@@ -69,10 +69,10 @@ lint.select = [
     "B", # flake8-bugbear
 ]
 lint.ignore = []
-exclude = ["src/mcp_optimizer/toolhive/api_models"]
+exclude = ["src/mcp_optimizer/toolhive/api_models", "data"]
 
 [tool.ty.src]
-exclude = ["tests", "examples"]
+exclude = ["tests", "examples", "data"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

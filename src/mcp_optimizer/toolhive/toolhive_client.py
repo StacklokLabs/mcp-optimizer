@@ -580,8 +580,7 @@ class ToolhiveClient:
 
             return workload_list
 
-        result = await self._with_retry(_list_workloads_impl)()
-        return cast(WorkloadListResponse, result)
+        return await self._with_retry(_list_workloads_impl)()
 
     async def get_workload_details(self, workload_name: str) -> Workload:
         """
@@ -631,8 +630,7 @@ class ToolhiveClient:
 
             return workload
 
-        result = await self._with_retry(_get_workload_details_impl)()
-        return cast(Workload, result)
+        return await self._with_retry(_get_workload_details_impl)()
 
     async def get_running_mcp_workloads(self) -> list[Workload]:
         """
@@ -702,8 +700,7 @@ class ToolhiveClient:
 
             return registry
 
-        result = await self._with_retry(_get_registry_impl)()
-        return cast(Registry, result)
+        return await self._with_retry(_get_registry_impl)()
 
     async def get_server_from_registry(
         self, server_name: str

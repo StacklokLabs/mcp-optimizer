@@ -13,6 +13,7 @@ import httpx
 import structlog
 
 from mcp_optimizer.toolhive.api_models.core import Workload
+from mcp_optimizer.toolhive.api_models.runtime import WorkloadStatus
 
 logger = structlog.get_logger(__name__)
 
@@ -154,14 +155,13 @@ class K8sClient:
 
         # Map k8s phase to workload status
         # Phases: Pending, Running, Failed, Unknown
-        workload_status = "stopped"
+        workload_status = WorkloadStatus.workload_status_stopped
         if phase == "Running":
-            workload_status = "running"
+            workload_status = WorkloadStatus.workload_status_running
 
-        # Determine tool_type based on whether this is a remote server or not
+        # Determine if this is a remote server or not
         # In k8s, we don't have direct "remote" field, so we check if it's defined as remote in spec
         is_remote = spec.get("remote", False)
-        tool_type = "remote" if is_remote else "mcp"
 
         # Get proxy mode from spec
         proxy_mode = spec.get("proxyMode", "sse")
@@ -181,7 +181,6 @@ class K8sClient:
             name=name,
             url=url,
             status=workload_status,
-            tool_type=tool_type,
             transport_type=transport_type,
             port=port,
             proxy_mode=proxy_mode,
