@@ -17,6 +17,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import tiktoken
+from fastembed import TextEmbedding
+
 # Default paths matching config.py defaults and Dockerfile expectations
 DEFAULT_MODELS_DIR = Path(__file__).parent.parent / "models"
 DEFAULT_FASTEMBED_PATH = DEFAULT_MODELS_DIR / "fastembed"
@@ -76,7 +79,6 @@ def download_fastembed_model(cache_path: Path) -> bool:
     try:
         # Import fastembed and download the model
         os.environ["FASTEMBED_CACHE_PATH"] = str(cache_path)
-        from fastembed import TextEmbedding
 
         # Instantiating TextEmbedding triggers the download
         _ = TextEmbedding(model_name=FASTEMBED_MODEL, cache_dir=str(cache_path))
@@ -97,7 +99,6 @@ def download_tiktoken_encoding(cache_path: Path) -> bool:
 
     try:
         os.environ["TIKTOKEN_CACHE_DIR"] = str(cache_path)
-        import tiktoken
 
         # Getting the encoding triggers the download
         _ = tiktoken.get_encoding(TIKTOKEN_ENCODING)
