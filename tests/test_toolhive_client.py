@@ -22,7 +22,6 @@ def mock_workload_response():
                 "package": "test/mcp-server:latest",
                 "url": "http://127.0.0.1:8080/sse#test-server",
                 "port": 8080,
-                "tool_type": "mcp",
                 "transport_type": "stdio",
                 "status": "running",
                 "status_context": "Up 1 hour",
@@ -91,7 +90,6 @@ async def test_list_workloads(toolhive_client, mock_workload_response):
         assert workload.name == "test-server"
         assert workload.status == "running"
         assert workload.transport_type == "stdio"
-        assert workload.tool_type == "mcp"
 
         # Verify the HTTP call
         expected_url = (
@@ -118,7 +116,6 @@ async def test_get_running_mcp_workloads(toolhive_client, mock_workload_response
         assert len(result) == 1
         assert result[0].name == "test-server"
         assert result[0].status == "running"
-        assert result[0].tool_type == "mcp"
 
 
 @pytest.mark.asyncio
@@ -507,7 +504,6 @@ def mock_workload_detail_response():
         "url": "https://api.github.com/mcp",
         "remote": True,
         "status": "running",
-        "tool_type": "remote",
         "proxy_mode": "sse",
         "port": 8081,
         "group": "production",
@@ -535,7 +531,6 @@ async def test_get_workload_details_success(toolhive_client, mock_workload_detai
         assert result.url == "https://api.github.com/mcp"
         assert result.remote is True
         assert result.status == "running"
-        assert result.tool_type == "remote"
 
         # Verify the HTTP call
         expected_url = (
