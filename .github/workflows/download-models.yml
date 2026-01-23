@@ -1,0 +1,49 @@
+name: Download Models
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  download:
+    name: Download ML Models
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Cache ML models
+        id: cache-models
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: models/
+          # Cache key based on model versions - bump suffix to invalidate
+          key: ml-models-v1-fastembed-bge-small-tiktoken-cl100k-llmlingua2
+
+      - name: Install uv
+        if: steps.cache-models.outputs.cache-hit != 'true'
+        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v7.2.0
+        with:
+          enable-cache: true
+          python-version: '3.13'
+
+      - name: Install Task
+        if: steps.cache-models.outputs.cache-hit != 'true'
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          version: 3.44.1
+
+      - name: Download models
+        if: steps.cache-models.outputs.cache-hit != 'true'
+        run: task download-models
+
+      - name: Upload models artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ml-models
+          path: models/
+          retention-days: 1
+          if-no-files-found: error

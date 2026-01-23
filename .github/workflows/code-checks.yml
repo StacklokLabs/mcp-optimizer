@@ -10,19 +10,28 @@ jobs:
   code_quality:
     name: Code Quality
     uses: ./.github/workflows/code-quality.yml
+
+  # Download models once, before image build
+  download_models:
+    name: Download Models
+    uses: ./.github/workflows/download-models.yml
+
   image_build:
     name: Build Docker Image
     uses: ./.github/workflows/image-build.yml
-    needs: code_quality
+    needs: [code_quality, download_models]
+
   # Will use the cached layers from image_build job
   integration_tests:
     name: Integration Tests
     uses: ./.github/workflows/integration-tests.yml
     needs: image_build
+
   offline_tests:
     name: Offline Mode Tests
     uses: ./.github/workflows/offline-tests.yml
     needs: image_build
+
   mcp_tef_integration_tests:
     name: MCP TEF Integration Tests
     uses: ./.github/workflows/mcp-tef-integration-tests.yml

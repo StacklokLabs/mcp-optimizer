@@ -30,3 +30,6 @@ sbom.json
 # Example data and results (download from releases)
 examples/anthropic_comparison/*.json
 examples/anthropic_comparison/*.png
+
+# Pre-downloaded ML models (downloaded by scripts/download_models.py)
+models/

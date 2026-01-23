@@ -257,10 +257,19 @@ class MCPOptimizerConfig(BaseModel):
         ),
     )
     fastembed_cache_path: str | None = Field(
-        default=None, description="Path to FastEmbed cache directory"
+        default=None,
+        description="Path to FastEmbed cache directory. "
+        "Defaults to 'models/fastembed' relative to package root if not set.",
     )
     tiktoken_cache_dir: str | None = Field(
-        default=None, description="Path to Tiktoken cache directory"
+        default=None,
+        description="Path to Tiktoken cache directory. "
+        "Defaults to 'models/tiktoken' relative to package root if not set.",
+    )
+    llmlingua_model_path: str | None = Field(
+        default=None,
+        description="Path to LLMLingua ONNX model directory. "
+        "Defaults to 'models/llmlingua' relative to package root if not set.",
     )
 
     @field_validator("skipped_workloads", mode="before")
@@ -474,6 +483,45 @@ def _get_default_database_urls() -> tuple[str, str]:
     return default_db_url, default_async_db_url
 
 
+def _get_default_model_paths() -> tuple[str, str, str]:
+    """Get default paths for pre-downloaded ML models.
+
+    Models are expected to be in the 'models/' directory relative to the package root.
+    This matches the paths used by scripts/download_models.py.
+
+    Returns:
+        Tuple of (fastembed_path, tiktoken_path, llmlingua_path)
+    """
+    # Calculate models directory relative to package root
+    # Path: src/mcp_optimizer/config.py -> parent.parent.parent = project root
+    root_dir = Path(__file__).parent.parent.parent.resolve()
+    models_dir = root_dir / "models"
+
+    fastembed_path = str(models_dir / "fastembed")
+    tiktoken_path = str(models_dir / "tiktoken")
+    llmlingua_path = str(models_dir / "llmlingua")
+
+    return fastembed_path, tiktoken_path, llmlingua_path
+
+
+def _setup_model_paths(config_data: dict[str, Any]) -> None:
+    """Set up default model paths if not provided via environment variables.
+
+    Only sets defaults if the models directory exists (i.e., models were pre-downloaded).
+    """
+    fastembed_default, tiktoken_default, llmlingua_default = _get_default_model_paths()
+
+    # Only set defaults if not already provided and the default path exists
+    if "fastembed_cache_path" not in config_data and Path(fastembed_default).exists():
+        config_data["fastembed_cache_path"] = fastembed_default
+
+    if "tiktoken_cache_dir" not in config_data and Path(tiktoken_default).exists():
+        config_data["tiktoken_cache_dir"] = tiktoken_default
+
+    if "llmlingua_model_path" not in config_data and Path(llmlingua_default).exists():
+        config_data["llmlingua_model_path"] = llmlingua_default
+
+
 def _populate_config_from_env() -> dict[str, Any]:
     """Populate configuration dictionary from environment variables."""
     config_data = {}
@@ -517,6 +565,7 @@ def _populate_config_from_env() -> dict[str, Any]:
         "ENABLE_DYNAMIC_INSTALL": "enable_dynamic_install",
         "FASTEMBED_CACHE_PATH": "fastembed_cache_path",
         "TIKTOKEN_CACHE_DIR": "tiktoken_cache_dir",
+        "LLMLINGUA_MODEL_PATH": "llmlingua_model_path",
     }
 
     for env_var, field_name in env_mappings.items():
@@ -576,6 +625,9 @@ def load_config() -> MCPOptimizerConfig:
 
         # Auto-detect K8s API server URL when in k8s mode
         _auto_detect_k8s_api_url(config_data)
+
+        # Set up default model paths if models were pre-downloaded
+        _setup_model_paths(config_data)
 
         # Validate configuration using Pydantic
         config = MCPOptimizerConfig(**config_data)
