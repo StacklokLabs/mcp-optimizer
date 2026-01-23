@@ -7,14 +7,9 @@ permissions:
   contents: read
 
 jobs:
-  download-models:
-    name: Download Models
-    uses: ./.github/workflows/download-models.yml
-
   build:
     name: Build Docker Image
     runs-on: ubuntu-latest
-    needs: download-models
 
     steps:
     - name: Checkout code
@@ -23,7 +18,7 @@ jobs:
     - name: Download models artifact
       uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
       with:
-        name: ${{ needs.download-models.outputs.artifact-name }}
+        name: ml-models
         path: models/
 
     - name: Set up Docker Buildx
