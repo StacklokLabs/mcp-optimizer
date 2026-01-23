@@ -74,18 +74,29 @@ tasks:
     deps:
       - install
 
+  download-models:
+    desc: Download ML models for offline/airgapped deployments
+    cmds:
+      - uv run python scripts/download_models.py
+    deps:
+      - install
+
   build:
     desc: Build multi-architecture container image
     cmds:
       - docker buildx create --name mcp-optimizer-builder --use --bootstrap || docker buildx use mcp-optimizer-builder
       - docker buildx build --platform linux/amd64,linux/arm64 -t mcp-optimizer:latest --load .
       - docker rm -f mcp-optimizer-container || true
+    deps:
+      - download-models
 
   build-local:
     desc: Build container image for local architecture only (faster for development)
     cmds:
       - docker build -t mcp-optimizer:latest .
       - docker rm -f mcp-optimizer-container || true
+    deps:
+      - download-models
 
   run-container:
     desc: Run the application in a container (builds for local arch only)
@@ -113,8 +124,9 @@ tasks:
     cmds:
       - thv group create optim || true
       - thv rm mcp-optimizer || true
-      - docker build -t mcp-optimizer .
       - thv run mcp-optimizer:latest --transport streamable-http --group optim
+    deps:
+      - build-local
 
   offline-container-tests:
     desc: Run container offline mode tests

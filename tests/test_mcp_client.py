@@ -28,7 +28,7 @@ def mock_workload():
         package="test/mcp-server:latest",
         url="http://127.0.0.1:8080/sse#test-server",
         port=8080,
-                transport_type="sse",
+        transport_type="sse",
         status="running",
         status_context="Up 1 hour",
     )
@@ -40,7 +40,7 @@ async def test_mcp_server_client_no_url():
     workload = Workload(
         name="test-server",
         status="running",
-            )
+    )
 
     client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
     with pytest.raises(WorkloadConnectionError, match="Workload has no URL"):
@@ -53,7 +53,7 @@ async def test_mcp_server_client_call_tool_no_url():
     workload = Workload(
         name="test-server",
         status="running",
-            )
+    )
     client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
 
     with pytest.raises(WorkloadConnectionError, match="Workload has no URL"):
@@ -67,7 +67,7 @@ async def test_mcp_server_client_call_tool_streamable():
         name="test-workload",
         url="http://localhost:8080/mcp/test",
         status="running",
-            )
+    )
     client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
 
     # Mock the MCP client session and result
@@ -101,7 +101,7 @@ async def test_mcp_server_client_call_tool_sse():
         name="test-workload",
         url="http://localhost:8080/sse/test",
         status="running",
-            )
+    )
     client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
 
     # Mock the MCP client session and result
@@ -135,7 +135,7 @@ async def test_mcp_server_client_call_tool_unsupported_transport():
         name="test-workload",
         url="http://localhost:8080/unknown/test",
         status="running",
-            )
+    )
     client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
 
     with pytest.raises(ValueError, match="Unsupported ToolHive URL"):
@@ -149,7 +149,7 @@ async def test_mcp_server_client_handles_exception_group():
         name="test-workload",
         url="http://localhost:8080/mcp/test",
         status="running",
-            )
+    )
     client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
 
     # Create an ExceptionGroup with a nested McpError (simulating Python 3.13+ TaskGroup behavior)
@@ -182,7 +182,7 @@ async def test_mcp_server_client_handles_mcp_error():
         name="test-workload",
         url="http://localhost:8080/mcp/test",
         status="running",
-            )
+    )
     client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
 
     # Create a direct McpError
@@ -213,7 +213,7 @@ def test_extract_error_from_exception_group():
         name="test-workload",
         url="http://localhost:8080/mcp/test",
         status="running",
-            )
+    )
     client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
 
     # Test with McpError
@@ -267,7 +267,7 @@ def test_workload_url_unchanged_after_init(url, transport_type):
         url=url,
         transport_type=transport_type,
         status="running",
-            )
+    )
 
     # Create client
     _client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
@@ -296,7 +296,7 @@ async def test_workload_url_unchanged_during_list_tools(
         name="test-server",
         url=url,
         status="running",
-            )
+    )
 
     client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
 
@@ -353,7 +353,7 @@ async def test_workload_url_unchanged_during_call_tool(
         url=url,
         proxy_mode=proxy_mode,
         status="running",
-            )
+    )
 
     client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
 
@@ -385,7 +385,7 @@ async def test_workload_url_unchanged_multiple_operations(mock_mcp_session):
         name="test-server",
         url=original_url,
         status="running",
-            )
+    )
 
     client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
 
@@ -642,7 +642,7 @@ async def test_sse_session_propagates_errors(mock_mcp_session):
         name="test-server",
         url="http://localhost:8080/sse/test-server",
         status="running",
-            )
+    )
 
     client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
 
@@ -674,7 +674,7 @@ async def test_sse_session_uses_tolerant_client(mock_mcp_session):
         name="test-server",
         url="http://localhost:8080/sse/test-server",
         status="running",
-            )
+    )
 
     client = MCPServerClient(workload, timeout=10, runtime_mode="docker")
 

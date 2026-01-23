@@ -54,40 +54,14 @@ USER root
 RUN chown app:app /app/.venv/lib/python3.13/site-packages/sqlite_vec/vec0.so
 USER app
 
-# Pre-download fastembed models and tiktoken encodings stage
-FROM builder AS model-downloader
-
-# Switch to root to create cache directory, then switch back to app user
-USER root
-RUN mkdir -p /app/.cache/fastembed /app/.cache/tiktoken && chown -R app:app /app/.cache
-USER app
-
-# Set cache directory for fastembed models and tiktoken
-ENV FASTEMBED_CACHE_PATH=/app/.cache/fastembed
-ENV TIKTOKEN_CACHE_DIR=/app/.cache/tiktoken
-
-# Pre-download the embedding model by instantiating TextEmbedding
-RUN --mount=type=cache,target=/app/.cache/uv,uid=1000,gid=1000 \
-    /app/.venv/bin/python -c "\
-import os; \
-print(f'FASTEMBED_CACHE_PATH: {os.environ.get(\"FASTEMBED_CACHE_PATH\")}'); \
-from fastembed import TextEmbedding; \
-print('Downloading embedding model...'); \
-model = TextEmbedding(model_name='BAAI/bge-small-en-v1.5'); \
-print('Model downloaded successfully')"
-
-# Pre-download tiktoken encodings for offline use
-RUN /app/.venv/bin/python -c "\
-import tiktoken; \
-print('Downloading tiktoken encodings...'); \
-tiktoken.get_encoding('cl100k_base'); \
-print('Tiktoken encodings downloaded successfully')"
-
 FROM python:3.13-slim AS runner
 
 # Create non-root user (same as builder stage)
 RUN groupadd --gid 1000 app && \
     useradd --uid 1000 --gid app --shell /bin/bash --create-home app
+
+# Install system dependencies (jq for JSON query support)
+RUN apt-get update && apt-get install -y --no-install-recommends jq && rm -rf /var/lib/apt/lists/*
 
 # Create app directory and set ownership
 WORKDIR /app
@@ -97,9 +71,11 @@ RUN chown app:app /app
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --from=builder --chown=app:app /app/migrations /app/migrations
 
-# Copy pre-downloaded fastembed models and tiktoken encodings
-COPY --from=model-downloader --chown=app:app /app/.cache/fastembed /app/.cache/fastembed
-COPY --from=model-downloader --chown=app:app /app/.cache/tiktoken /app/.cache/tiktoken
+# Copy pre-downloaded models from build context
+# Models are architecture-independent (ONNX format) and downloaded by scripts/download_models.py
+COPY --chown=app:app models/fastembed /app/.cache/fastembed
+COPY --chown=app:app models/tiktoken /app/.cache/tiktoken
+COPY --chown=app:app models/llmlingua /app/.cache/llmlingua
 
 # Switch to non-root user
 USER app
@@ -109,6 +85,7 @@ ENV TOOLHIVE_HOST=host.docker.internal
 ENV RUNNING_IN_DOCKER=1
 ENV FASTEMBED_CACHE_PATH=/app/.cache/fastembed
 ENV TIKTOKEN_CACHE_DIR=/app/.cache/tiktoken
+ENV LLMLINGUA_MODEL_PATH=/app/.cache/llmlingua
 ENV COLORED_LOGS=false
 
 # Run the application
