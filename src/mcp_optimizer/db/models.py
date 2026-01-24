@@ -116,6 +116,7 @@ class WorkloadServer(BaseMcpServer):
     status: McpStatus
     registry_server_id: str | None = None  # NULL if autonomous
     registry_server_name: str | None = None  # Cached for tool embedding context
+    virtual_mcp: bool = False  # True for VirtualMCPServer resources, False for regular MCPServer
 
 
 class BaseTool(BaseModel):
@@ -218,6 +219,7 @@ class WorkloadServerUpdateDetails(BaseServerUpdateDetails):
     status: McpStatus | None = None
     registry_server_id: str | None = None
     registry_server_name: str | None = None
+    virtual_mcp: bool | None = None
 
 
 class BaseToolUpdateDetails(BaseUpdateDetails):

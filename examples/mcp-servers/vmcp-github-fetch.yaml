@@ -1,0 +1,79 @@
+# Complete vMCP setup with GitHub and Fetch MCP servers
+# This configuration creates a Virtual MCP Server that aggregates
+# GitHub and Fetch backend servers into a single endpoint
+
+---
+apiVersion: toolhive.stacklok.dev/v1alpha1
+kind: MCPGroup
+metadata:
+  name: github-fetch-group
+  namespace: toolhive-system
+spec:
+  description: "Virtual MCP group with GitHub and Fetch servers"
+
+---
+apiVersion: toolhive.stacklok.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: github
+  namespace: toolhive-system
+spec:
+  groupRef: github-fetch-group
+  image: ghcr.io/github/github-mcp-server:v0.18.0
+  transport: stdio
+  proxyMode: streamable-http
+  port: 8080
+  targetPort: 8080
+  serviceAccount: mcp-shared-sa
+  permissionProfile:
+    name: network
+    type: builtin
+  secrets:
+    - name: github-token
+      key: token
+      targetEnvName: GITHUB_PERSONAL_ACCESS_TOKEN
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+---
+apiVersion: toolhive.stacklok.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: fetch
+  namespace: toolhive-system
+spec:
+  groupRef: github-fetch-group
+  image: ghcr.io/stackloklabs/gofetch/server
+  transport: streamable-http
+  proxyMode: streamable-http
+  port: 8080
+  targetPort: 8080
+  serviceAccount: mcp-shared-sa
+  permissionProfile:
+    name: network
+    type: builtin
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+---
+apiVersion: toolhive.stacklok.dev/v1alpha1
+kind: VirtualMCPServer
+metadata:
+  name: github-fetch-vmcp
+  namespace: toolhive-system
+spec:
+  config:
+    groupRef: github-fetch-group
+  serviceType: ClusterIP
+  incomingAuth:
+    type: anonymous

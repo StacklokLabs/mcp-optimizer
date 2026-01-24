@@ -68,6 +68,7 @@ def upgrade() -> None:
             description TEXT,
             server_embedding BLOB,
             "group" TEXT NOT NULL DEFAULT 'default',
+            virtual_mcp INTEGER NOT NULL DEFAULT 0,
             last_updated TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (registry_server_id)

@@ -271,31 +271,36 @@ class BaseToolOps(ABC):
 
     async def get_all_tools(
         self,
-        server_statuses: list[str] | None = None,
+        server_statuses: list[McpStatus] | None = None,
         allowed_groups: list[str] | None = None,
         conn: AsyncConnection | None = None,
     ) -> list[RegistryToolWithMetadata] | list[WorkloadToolWithMetadata]:
         """Get all tools from all servers with their metadata.
 
+        Uses the same virtual MCP filtering logic as find_similar_tools:
+        - If a group has virtual MCP servers, only include tools from those
+        - If a group has no virtual MCP servers, include tools from all servers in that group
+
         Args:
-            server_statuses: Optional list of status values to filter servers by
+            server_statuses: Optional list of McpStatus values to filter servers by
             allowed_groups: Optional list of group names to filter by
             conn: Optional connection
 
         Returns:
             List of ToolWithMetadata objects containing tools with server info
         """
-        # Build status filter
-        status_filter = ""
-        if server_statuses and len(server_statuses) > 0:
-            status_placeholders = ",".join([f":status{i}" for i in range(len(server_statuses))])
-            status_filter = f"AND s.status IN ({status_placeholders})"
+        params: dict[str, Any] = {}
 
-        # Build group filter
+        # Build status filter
+        status_filter = self._build_status_filter(server_statuses, params)
+
+        # Build group filter with virtual MCP logic
         group_filter = ""
         if allowed_groups and len(allowed_groups) > 0:
-            group_placeholders = ",".join([f":group{i}" for i in range(len(allowed_groups))])
-            group_filter = f'AND s."group" IN ({group_placeholders})'
+            group_filter, group_params = self._get_group_server_filter(
+                allowed_groups, server_statuses
+            )
+            params.update(group_params)
 
         query = f"""
         SELECT t.*, s.name as server_name, s.description as server_description
@@ -306,14 +311,6 @@ class BaseToolOps(ABC):
         {group_filter}
         ORDER BY s.name, t.created_at
         """  # nosec B608 - Table names are code-controlled, params are safe
-
-        params: dict[str, Any] = {}
-        if server_statuses:
-            for i, status in enumerate(server_statuses):
-                params[f"status{i}"] = status
-        if allowed_groups:
-            for i, group in enumerate(allowed_groups):
-                params[f"group{i}"] = group
 
         results = await self.db.execute_query(query, params=params, conn=conn)
 
@@ -751,6 +748,64 @@ class BaseToolOps(ABC):
 
         return combined_results
 
+    def _get_group_server_filter(
+        self,
+        allowed_groups: list[str] | None,
+        server_statuses: list[McpStatus] | None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Build server filter logic based on virtual MCP presence in groups.
+
+        Uses conditional logic to filter servers in a single query:
+        - For groups WITH virtual MCP servers: only include virtual_mcp = 1
+        - For groups WITHOUT virtual MCP servers: include all servers
+
+        Args:
+            allowed_groups: List of group names to filter by
+            server_statuses: Optional list of status values to filter servers by
+
+        Returns:
+            Tuple of (filter_clause, params_dict)
+        """
+        if not allowed_groups or len(allowed_groups) == 0:
+            return "", {}
+
+        params: dict[str, Any] = {}
+        status_filter = self._build_status_filter(server_statuses, params)
+
+        # Build placeholders for group names
+        group_placeholders = ",".join([f":group{i}" for i in range(len(allowed_groups))])
+        for i, group in enumerate(allowed_groups):
+            params[f"group{i}"] = group
+
+        # Build conditional filter using EXISTS subquery
+        # Logic: For each server in an allowed group:
+        #   - If ANY virtual MCP exists in that group, only include virtual MCPs
+        #   - If NO virtual MCP exists in that group, include all servers
+        filter_clause = f"""
+        AND (
+            s."group" IN ({group_placeholders})
+            AND (
+                -- If this group has virtual MCPs, only include virtual ones
+                (EXISTS (
+                    SELECT 1 FROM {self.server_table_name} sub
+                    WHERE sub."group" = s."group"
+                    AND sub.virtual_mcp = 1
+                    {status_filter.replace("s.", "sub.")}
+                ) AND s.virtual_mcp = 1)
+                OR
+                -- If this group has no virtual MCPs, include all servers
+                NOT EXISTS (
+                    SELECT 1 FROM {self.server_table_name} sub
+                    WHERE sub."group" = s."group"
+                    AND sub.virtual_mcp = 1
+                    {status_filter.replace("s.", "sub.")}
+                )
+            )
+        )
+        """  # nosec B608 - Table name is code-controlled, params are safe
+
+        return filter_clause, params
+
     async def _find_similar_tools_semantic_only(
         self,
         query_embedding: np.ndarray,
@@ -772,10 +827,14 @@ class BaseToolOps(ABC):
 
         # Build filters
         status_filter = self._build_status_filter(server_statuses, params)
+
+        # Build group filter with virtual MCP logic
         group_filter = ""
         if allowed_groups and len(allowed_groups) > 0:
-            group_placeholders = ",".join([f":group{i}" for i in range(len(allowed_groups))])
-            group_filter = f'AND s."group" IN ({group_placeholders})'
+            group_filter, group_params = self._get_group_server_filter(
+                allowed_groups, server_statuses
+            )
+            params.update(group_params)
 
         # Build query based on server filter
         if server_ids and len(server_ids) > 0:
@@ -810,11 +869,6 @@ class BaseToolOps(ABC):
             AND k = :limit
             ORDER BY tv.distance
             """  # nosec B608 - Table names are code-controlled, params are safe
-
-        # Add group parameters
-        if allowed_groups:
-            for i, group in enumerate(allowed_groups):
-                params[f"group{i}"] = group
 
         # Execute similarity search
         similarity_results = await self.db.execute_query(similarity_query, params, conn=conn)
@@ -869,10 +923,14 @@ class BaseToolOps(ABC):
 
         # Build filters
         status_filter = self._build_status_filter(server_statuses, params)
+
+        # Build group filter with virtual MCP logic
         group_filter = ""
         if allowed_groups and len(allowed_groups) > 0:
-            group_placeholders = ",".join([f":group{i}" for i in range(len(allowed_groups))])
-            group_filter = f'AND s."group" IN ({group_placeholders})'
+            group_filter, group_params = self._get_group_server_filter(
+                allowed_groups, server_statuses
+            )
+            params.update(group_params)
 
         # Build FTS query
         if server_ids and len(server_ids) > 0:
@@ -907,11 +965,6 @@ class BaseToolOps(ABC):
             ORDER BY fts.rank
             LIMIT :limit
             """  # nosec B608 - Table names are code-controlled, params are safe
-
-        # Add group parameters
-        if allowed_groups:
-            for i, group in enumerate(allowed_groups):
-                params[f"group{i}"] = group
 
         # Execute BM25 search
         fts_results = await self.db.execute_query(fts_query, params, conn=conn)

@@ -161,6 +161,91 @@ You should see a successful initialization response from MCP Optimizer.
 
 For client configuration (Cursor, VSCode, Claude Desktop), see [Connecting Clients](../../docs/kubernetes-integration.md#connecting-clients).
 
+## Virtual MCP (vMCP) Setup
+
+Virtual MCP allows you to aggregate multiple MCP servers behind a single endpoint. This is useful when you want to group related servers together and expose them as a unified service.
+
+### Using the vMCP Configuration
+
+The `vmcp-github-fetch.yaml` file provides a complete vMCP setup that aggregates GitHub and Fetch servers:
+
+```bash
+# First, ensure the shared service account exists
+kubectl apply -f examples/mcp-servers/shared-serviceaccount.yaml
+
+# Create GitHub secrets (required for GitHub server)
+export GITHUB_TOKEN=your_token_here
+./examples/mcp-servers/create-github-secrets.sh
+
+# Apply the complete vMCP configuration
+kubectl apply -f examples/mcp-servers/vmcp-github-fetch.yaml
+
+# Verify the deployment
+kubectl get mcpgroup github-fetch-group -n toolhive-system
+kubectl get mcpserver -n toolhive-system
+kubectl get virtualmcpserver github-fetch-vmcp -n toolhive-system
+```
+
+The vMCP configuration includes:
+- **MCPGroup** (`github-fetch-group`): Logical container grouping the backend servers
+- **MCPServer** (GitHub and Fetch): Backend MCP servers
+- **VirtualMCPServer** (`github-fetch-vmcp`): Virtual server that aggregates the backends
+
+### Accessing the vMCP Service
+
+Once deployed, you can access the vMCP through its service:
+
+```bash
+# Port forward the vMCP service
+kubectl port-forward -n toolhive-system svc/github-fetch-vmcp 8080:8080
+
+# Test the connection
+curl -s http://localhost:8080/mcp \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+```
+
+For production deployments, configure an Ingress or Gateway API for TLS termination and controlled access.
+
+### Using MCP Optimizer with vMCP
+
+To deploy MCP Optimizer that discovers and aggregates tools from the vMCP group:
+
+```bash
+# First, ensure the vMCP setup is deployed
+kubectl apply -f examples/mcp-servers/vmcp-github-fetch.yaml
+
+# Deploy MCP Optimizer configured for the github-fetch-group
+kubectl apply -f examples/mcp-servers/mcpserver_mcp-optimizer-vmcp.yaml
+
+# Verify deployment
+kubectl get mcpserver mcp-optimizer -n toolhive-system
+kubectl get pods -n toolhive-system | grep mcp-optimizer
+
+# Check logs to verify tool discovery from the group
+kubectl logs -n toolhive-system -l app.kubernetes.io/name=mcp-optimizer --tail=50
+```
+
+The `mcpserver_mcp-optimizer-vmcp.yaml` configuration includes:
+- **Enhanced RBAC**: Permissions to read `mcpservers`, `virtualmcpservers`, and `mcpgroups`
+- **Group Filtering**: `ALLOWED_GROUPS` set to `github-fetch-group` to discover only servers in that group
+- **ServiceAccount**: Dedicated service account with imagePullSecrets for ghcr.io
+
+Access MCP Optimizer:
+
+```bash
+# Port forward the MCP Optimizer service
+kubectl port-forward -n toolhive-system svc/mcp-optimizer-proxy 9900:9900
+
+# Test the connection
+curl -s http://localhost:9900/mcp \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+```
+
 ## Files
 
 - **`create-github-secrets.sh`** - Convenience script to create both GitHub secrets from GITHUB_TOKEN environment variable
@@ -169,6 +254,8 @@ For client configuration (Cursor, VSCode, Claude Desktop), see [Connecting Clien
 - **`mcpserver_github.yaml`** - GitHub API integration server (uses shared ServiceAccount)
 - **`mcpserver_toolhive-doc-mcp.yaml`** - ToolHive documentation search and retrieval server (uses shared ServiceAccount, shares github-token secret)
 - **`mcpserver_mcp-optimizer.yaml`** - MCP Optimizer server that aggregates tools from all MCP servers (includes its own ServiceAccount with imagePullSecrets and RBAC)
+- **`mcpserver_mcp-optimizer-vmcp.yaml`** - MCP Optimizer configured for vMCP setup with enhanced RBAC to read virtualmcpservers and mcpgroups, filters by github-fetch-group
+- **`vmcp-github-fetch.yaml`** - Complete vMCP configuration with MCPGroup, GitHub server, Fetch server, and VirtualMCPServer that aggregates them
 
 ## Complete Documentation
 

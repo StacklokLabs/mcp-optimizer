@@ -14,6 +14,7 @@ import structlog
 
 from mcp_optimizer.toolhive.api_models.core import Workload
 from mcp_optimizer.toolhive.api_models.runtime import WorkloadStatus
+from mcp_optimizer.toolhive.api_models.types import TransportType
 
 logger = structlog.get_logger(__name__)
 
@@ -125,11 +126,14 @@ class K8sClient:
             )
         return None
 
-    def _mcpserver_to_workload(self, mcpserver: dict[str, Any]) -> Workload:
+    def _mcpserver_to_workload(
+        self, mcpserver: dict[str, Any], is_virtual: bool = False
+    ) -> Workload:
         """Convert an MCPServer CRD to a Workload model.
 
         Args:
             mcpserver: MCPServer custom resource dictionary
+            is_virtual: Whether this is a VirtualMCPServer resource
 
         Returns:
             Workload model instance
@@ -145,7 +149,6 @@ class K8sClient:
 
         # Extract spec fields
         image = spec.get("image", "")
-        transport = spec.get("transport", "stdio")
         port = spec.get("port", 8080)
 
         # Extract status fields
@@ -153,10 +156,22 @@ class K8sClient:
         url = status.get("url", "")
         tools = status.get("tools", [])
 
+        # VirtualMCPServers always use streamable-http transport and serve on /mcp path
+        # The K8s status URL doesn't include the path, so we need to append it
+        if is_virtual:
+            if url and not url.endswith("/mcp"):
+                url = f"{url}/mcp"
+            transport_type: TransportType | None = TransportType.transport_type_streamable_http
+        else:
+            # Regular MCPServer - get transport from spec
+            transport_str = spec.get("transport", "stdio")
+            transport_type = TransportType(transport_str) if transport_str else None
+
         # Map k8s phase to workload status
-        # Phases: Pending, Running, Failed, Unknown
+        # Phases: Pending, Running, Failed, Unknown (MCPServer)
+        # Phases: Pending, Ready, Failed, Unknown (VirtualMCPServer)
         workload_status = WorkloadStatus.workload_status_stopped
-        if phase == "Running":
+        if phase == "Running" or phase == "Ready":
             workload_status = WorkloadStatus.workload_status_running
 
         # Determine if this is a remote server or not
@@ -164,18 +179,28 @@ class K8sClient:
         is_remote = spec.get("remote", False)
 
         # Get proxy mode from spec
-        proxy_mode = spec.get("proxyMode", "sse")
-
-        # Determine transport type based on transport field
-        transport_type = transport
+        # VirtualMCPServers always use streamable-http proxy mode
+        if is_virtual:
+            proxy_mode = "streamable-http"
+        else:
+            proxy_mode = spec.get("proxyMode", "sse")
 
         # Get labels and group
         labels = metadata.get("labels", {})
-        # Prefer spec.groupRef over label (MCPServer CRD uses spec.groupRef)
-        group = spec.get("groupRef") or labels.get("toolhive.stacklok.dev/group", "default")
+        # Prefer spec.groupRef over label
+        # MCPServer CRD uses spec.groupRef, VirtualMCPServer uses spec.config.groupRef
+        if is_virtual:
+            config = spec.get("config", {})
+            group = config.get("groupRef") or labels.get("toolhive.stacklok.dev/group", "default")
+        else:
+            group = spec.get("groupRef") or labels.get("toolhive.stacklok.dev/group", "default")
 
-        # Package is typically the image name
-        package = image
+        # Package is typically the image name, but for VirtualMCPServers use a unique identifier
+        if is_virtual:
+            # Use vmcp:<name> as package identifier for VirtualMCPServers
+            package = f"vmcp:{name}"
+        else:
+            package = image
 
         workload = Workload(
             name=name,
@@ -191,6 +216,7 @@ class K8sClient:
             tools=tools,
             created_at=created_at,
             status_context=status.get("message", ""),
+            virtual_mcp=is_virtual,
         )
 
         logger.debug(
@@ -205,14 +231,14 @@ class K8sClient:
     async def list_mcpservers(
         self, namespace: str | None = None, all_namespaces: bool = False
     ) -> list[Workload]:
-        """List MCPServer resources from Kubernetes.
+        """List MCPServer and VirtualMCPServer resources from Kubernetes.
 
         Args:
             namespace: Specific namespace to query (overrides instance namespace)
             all_namespaces: If True, list across all namespaces
 
         Returns:
-            List of Workload objects converted from MCPServer CRDs
+            List of Workload objects converted from MCPServer and VirtualMCPServer CRDs
 
         Raises:
             K8sClientError: If the request fails
@@ -222,20 +248,30 @@ class K8sClient:
 
         if all_namespaces or target_namespace is None:
             # List across all namespaces
-            url = f"{self.api_server_url}/apis/toolhive.stacklok.dev/v1alpha1/mcpservers"
+            mcpserver_url = f"{self.api_server_url}/apis/toolhive.stacklok.dev/v1alpha1/mcpservers"
+            vmcpserver_url = (
+                f"{self.api_server_url}/apis/toolhive.stacklok.dev/v1alpha1/virtualmcpservers"
+            )
             scope = "all namespaces"
         else:
             # List in specific namespace
-            url = (
+            mcpserver_url = (
                 f"{self.api_server_url}/apis/toolhive.stacklok.dev/v1alpha1/"
                 f"namespaces/{target_namespace}/mcpservers"
             )
+            vmcpserver_url = (
+                f"{self.api_server_url}/apis/toolhive.stacklok.dev/v1alpha1/"
+                f"namespaces/{target_namespace}/virtualmcpservers"
+            )
             scope = f"namespace {target_namespace}"
 
-        logger.info("Listing MCPServers from Kubernetes", scope=scope, url=url)
+        logger.info("Listing MCPServers and VirtualMCPServers from Kubernetes", scope=scope)
 
+        workloads = []
+
+        # Fetch regular MCPServers
         try:
-            response = await self.client.get(url)
+            response = await self.client.get(mcpserver_url)
             response.raise_for_status()
 
             data = response.json()
@@ -248,9 +284,9 @@ class K8sClient:
             )
 
             # Convert MCPServer CRDs to Workload models
-            workloads = [self._mcpserver_to_workload(item) for item in items]
-
-            return workloads
+            workloads.extend(
+                [self._mcpserver_to_workload(item, is_virtual=False) for item in items]
+            )
 
         except httpx.HTTPStatusError as e:
             error_msg = f"HTTP error listing MCPServers: {e.response.status_code}"
@@ -268,6 +304,48 @@ class K8sClient:
             error_msg = f"Unexpected error listing MCPServers: {e}"
             logger.exception(error_msg)
             raise K8sClientError(error_msg) from e
+
+        # Fetch VirtualMCPServers
+        try:
+            response = await self.client.get(vmcpserver_url)
+            response.raise_for_status()
+
+            data = response.json()
+            items = data.get("items", [])
+
+            logger.info(
+                "Successfully listed VirtualMCPServers",
+                count=len(items),
+                scope=scope,
+            )
+
+            # Convert VirtualMCPServer CRDs to Workload models
+            workloads.extend([self._mcpserver_to_workload(item, is_virtual=True) for item in items])
+
+        except httpx.HTTPStatusError as e:
+            error_msg = f"HTTP error listing VirtualMCPServers: {e.response.status_code}"
+            logger.error(
+                error_msg,
+                status_code=e.response.status_code,
+                response_text=e.response.text,
+            )
+            raise K8sClientError(error_msg) from e
+        except httpx.RequestError as e:
+            error_msg = f"Request error listing VirtualMCPServers: {e}"
+            logger.error(error_msg, error=str(e))
+            raise K8sClientError(error_msg) from e
+        except Exception as e:
+            error_msg = f"Unexpected error listing VirtualMCPServers: {e}"
+            logger.exception(error_msg)
+            raise K8sClientError(error_msg) from e
+
+        logger.info(
+            "Successfully listed all resources",
+            total_count=len(workloads),
+            scope=scope,
+        )
+
+        return workloads
 
     async def get_mcpserver(self, name: str, namespace: str) -> Workload | None:
         """Get a specific MCPServer resource.

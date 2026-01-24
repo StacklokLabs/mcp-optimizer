@@ -134,6 +134,12 @@ class WorkloadToolOps(BaseToolOps):
         conn: AsyncConnection | None = None,
     ) -> int:
         """Sum token counts for all tools from running servers.
+
+        Uses the same virtual MCP filtering logic as find_similar_tools to ensure
+        consistent token metrics. For groups with virtual MCP servers, only counts
+        tokens from those virtual servers. For groups without virtual MCP servers,
+        counts tokens from all servers in the group.
+
         Args:
             allowed_groups: Optional list of group names to filter by.
                 If None, sums tokens from all groups.
@@ -142,14 +148,15 @@ class WorkloadToolOps(BaseToolOps):
         Returns:
             Total token count for all tools from running servers
         """
-        # Build group filter if provided
-        group_filter = ""
         params: dict = {"status": McpStatus.RUNNING}
+
+        # Build group filter using the same virtual MCP logic as find_similar_tools
+        group_filter = ""
         if allowed_groups and len(allowed_groups) > 0:
-            group_placeholders = ",".join([f":group{i}" for i in range(len(allowed_groups))])
-            group_filter = f'AND s."group" IN ({group_placeholders})'
-            for i, group in enumerate(allowed_groups):
-                params[f"group{i}"] = group
+            group_filter, group_params = self._get_group_server_filter(
+                allowed_groups, [McpStatus.RUNNING]
+            )
+            params.update(group_params)
 
         query = f"""
         SELECT COALESCE(SUM(t.token_count), 0) as total_tokens
