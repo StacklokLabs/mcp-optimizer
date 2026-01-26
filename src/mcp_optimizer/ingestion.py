@@ -359,7 +359,7 @@ class IngestionService:
 
         return False
 
-    def _has_workload_server_changed(
+    def _has_workload_server_changed(  # noqa: C901
         self,
         existing_server: "WorkloadServer",
         new_url: str | None = None,
@@ -370,6 +370,7 @@ class IngestionService:
         new_registry_server_id: str | None = None,
         new_description: str | None = None,
         new_embedding: np.ndarray | None = None,
+        new_virtual_mcp: bool | None = None,
     ) -> bool:
         """Check if workload server attributes have changed (US3).
 
@@ -383,6 +384,7 @@ class IngestionService:
             new_registry_server_id: New registry server ID (None means unlinked)
             new_description: New description
             new_embedding: New embedding
+            new_virtual_mcp: New virtual_mcp flag
 
         Returns:
             True if any attribute has changed, False otherwise
@@ -412,6 +414,8 @@ class IngestionService:
         if new_embedding is not None and not self._compare_embeddings(
             existing_server.server_embedding, new_embedding
         ):
+            return True
+        if new_virtual_mcp is not None and existing_server.virtual_mcp != new_virtual_mcp:
             return True
 
         return False
@@ -731,6 +735,7 @@ class IngestionService:
                 new_group=workload.group or "default",
                 new_registry_server_id=registry_server_id,
                 new_workload_identifier=workload.package,
+                new_virtual_mcp=workload.virtual_mcp or False,
             )
 
             if not server_has_changed:
@@ -749,6 +754,7 @@ class IngestionService:
                 "group": workload.group or "default",
                 "registry_server_id": registry_server_id,
                 "registry_server_name": registry_server_name,
+                "virtual_mcp": workload.virtual_mcp or False,
             }
 
             # If linked to registry, use registry metadata
@@ -816,6 +822,7 @@ class IngestionService:
                 group=workload.group or "default",
                 registry_server_id=registry_server_id,
                 registry_server_name=registry_server_name,
+                virtual_mcp=workload.virtual_mcp or False,
                 conn=conn,
             )
 

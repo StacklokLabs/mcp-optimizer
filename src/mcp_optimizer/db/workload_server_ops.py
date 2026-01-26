@@ -62,6 +62,7 @@ class WorkloadServerOps(BaseServerOps):
         description: str | None = None,
         server_embedding: np.ndarray | None = None,
         group: str = "default",
+        virtual_mcp: bool = False,
         conn: AsyncConnection | None = None,
     ) -> WorkloadServer:
         """Create a new workload server.
@@ -78,6 +79,7 @@ class WorkloadServerOps(BaseServerOps):
             description: Server description (required if registry_server_id is None)
             server_embedding: Vector embedding (required if registry_server_id is None)
             group: Server grouping (default: "default")
+            virtual_mcp: True for VirtualMCPServer, False for regular MCPServer (default: False)
             conn: Optional connection
 
         Returns:
@@ -101,6 +103,7 @@ class WorkloadServerOps(BaseServerOps):
             description=description,
             server_embedding=server_embedding,
             group=group,
+            virtual_mcp=virtual_mcp,
             last_updated=datetime.now(timezone.utc),
             created_at=datetime.now(timezone.utc),
         )
@@ -109,12 +112,12 @@ class WorkloadServerOps(BaseServerOps):
         INSERT INTO mcpservers_workload (
             id, name, url, workload_identifier, remote, transport, status,
             registry_server_id, registry_server_name, description, server_embedding,
-            "group", last_updated, created_at
+            "group", virtual_mcp, last_updated, created_at
         )
         VALUES (
             :id, :name, :url, :workload_identifier, :remote, :transport, :status,
             :registry_server_id, :registry_server_name, :description, :server_embedding,
-            :group, :last_updated, :created_at
+            :group, :virtual_mcp, :last_updated, :created_at
         )
         """
 

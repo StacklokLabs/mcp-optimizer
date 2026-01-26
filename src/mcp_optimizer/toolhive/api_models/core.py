@@ -58,3 +58,7 @@ class Workload(BaseModel):
         None,
         description='URL is the URL of the workload exposed by the ToolHive proxy.',
     )
+    virtual_mcp: bool | None = Field(
+        None,
+        description='VirtualMCP indicates whether this is a virtual MCP server resource (true) or a regular MCP server (false).',
+    )
