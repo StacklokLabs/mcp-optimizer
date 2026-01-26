@@ -47,9 +47,10 @@ tasks:
     desc: Run security scanning
     cmds:
       - uv run bandit -r src/
-      - uv run pip-audit
+      # TODO: Remove --ignore-vuln once protobuf releases a fix for CVE-2026-0994
+      - uv run pip-audit --ignore-vuln CVE-2026-0994
       - uv run bandit -r src/ -f json -o bandit-report.json || true
-      - uv run pip-audit --format=json --output=pip-audit-report.json || true
+      - uv run pip-audit --ignore-vuln CVE-2026-0994 --format=json --output=pip-audit-report.json || true
     deps:
       - install
 
@@ -59,7 +60,7 @@ tasks:
       - uv run cyclonedx-py environment --output-format json --output-file sbom.json
     deps:
       - install
-  
+
   generate-thv-models:
     desc: Generate Pydantic models from Toolhive's OpenAPI specification
     cmds:
