@@ -13,7 +13,7 @@ metadata:
 rules:
   # Allow reading MCPServer CRDs to discover MCP servers in the cluster
   - apiGroups: ["toolhive.stacklok.dev"]
-    resources: ["mcpservers"]
+    resources: ["mcpservers", "virtualmcpservers"]
     verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
