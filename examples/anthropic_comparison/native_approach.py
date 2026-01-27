@@ -6,7 +6,8 @@ import time
 
 import structlog
 from anthropic import AsyncAnthropic
-from models import NativeSearchResult, TestCase
+
+from .models import NativeSearchResult, TestCase
 
 logger = structlog.get_logger(__name__)
 

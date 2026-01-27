@@ -12,6 +12,10 @@ wheels/
 # Local configuration files
 *.local*
 
+# Environment files (keep .env.example)
+.env
+.env.local
+
 # Database files
 *.db
 
@@ -33,3 +37,15 @@ examples/anthropic_comparison/*.png
 
 # Pre-downloaded ML models (downloaded by scripts/download_models.py)
 models/
+
+# AppWorld data
+data/
+experiments/
+conversations/
+
+# ONNX models (too large for git)
+src/mcp_optimizer/response_optimizer/models/
+
+# Experiment state and results
+**/*_state.json
+**/*_results.json

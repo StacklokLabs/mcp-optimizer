@@ -13,6 +13,7 @@ The general purpose of the ToolHive MCP Optimizer is to develop a MCP server tha
 - pyproject.toml should be the central place for configuring the project, i.e. linters, typecheckers, testing, etc
 - Always prefer to use native Python types over custom types, e.g. use `list` instead of `List`, `dict` instead of `Dict`, etc.
 - Prefer using `uv run python -c "import this"` instead of `python -c "import this"`. This ensures that the correct python version and environment is used.
+- Prefer using module-level imports instead of function-level
 
 ## Code Structure
 - The main server code is located in `src/mcp_optimizer/server.py`

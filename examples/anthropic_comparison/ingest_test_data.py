@@ -20,7 +20,7 @@ from mcp_optimizer.db.workload_server_ops import WorkloadServerOps
 from mcp_optimizer.db.workload_tool_ops import WorkloadToolOps
 from mcp_optimizer.embeddings import EmbeddingManager
 from mcp_optimizer.ingestion import IngestionService
-from mcp_optimizer.token_counter import TokenCounter
+from mcp_optimizer.response_optimizer.token_counter import TokenCounter
 
 logger = structlog.get_logger(__name__)
 

@@ -10,7 +10,7 @@ from mcp.types import Tool as McpTool
 from mcp_optimizer.db.config import DatabaseConfig
 from mcp_optimizer.embeddings import EmbeddingManager
 from mcp_optimizer.ingestion import IngestionService
-from mcp_optimizer.token_counter import TokenCounter
+from mcp_optimizer.response_optimizer.token_counter import TokenCounter
 
 
 class TestIngestionServiceTokenCounting:
@@ -63,7 +63,7 @@ class TestIngestionServiceTokenCounting:
         """Test that TokenCounter is initialized in IngestionService."""
         assert hasattr(ingestion_service, "token_counter")
         assert isinstance(ingestion_service.token_counter, TokenCounter)
-        assert ingestion_service.token_counter.encoding.name == "cl100k_base"
+        assert ingestion_service.token_counter.encoding_name == "cl100k_base"
 
     @pytest.mark.asyncio
     async def test_sync_workload_tools_calculates_token_counts(

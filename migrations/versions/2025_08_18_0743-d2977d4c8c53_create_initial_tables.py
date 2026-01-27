@@ -178,12 +178,37 @@ def upgrade() -> None:
         )
     """)
 
+    # Create tool_responses table for KV store
+    op.execute("""
+        CREATE TABLE tool_responses (
+            id TEXT PRIMARY KEY,
+            session_key TEXT NOT NULL,
+            tool_name TEXT NOT NULL,
+            original_content TEXT NOT NULL,
+            content_type TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL,
+            metadata TEXT
+        )
+    """)
+
+    # Create indexes for efficient querying
+    op.execute("CREATE INDEX idx_tool_responses_session_key ON tool_responses(session_key)")
+    op.execute("CREATE INDEX idx_tool_responses_expires_at ON tool_responses(expires_at)")
+    op.execute("CREATE INDEX idx_tool_responses_tool_name ON tool_responses(tool_name)")
+
     op.execute("COMMIT;")  # Commit the transaction
 
 
 def downgrade() -> None:
     """Downgrade schema - Drop new tables."""
     op.execute("BEGIN TRANSACTION;")
+
+    # Drop tool_responses table
+    op.execute("DROP INDEX IF EXISTS idx_tool_responses_tool_name")
+    op.execute("DROP INDEX IF EXISTS idx_tool_responses_expires_at")
+    op.execute("DROP INDEX IF EXISTS idx_tool_responses_session_key")
+    op.execute("DROP TABLE IF EXISTS tool_responses")
 
     # Drop virtual tables first
     op.execute("DROP TABLE IF EXISTS workload_tool_fts")

@@ -7,7 +7,6 @@ from pathlib import Path
 
 import structlog
 from mcp.types import ListToolsResult
-from models import ChosenMcpServerTool, McpOptimizerSearchResult, TestCase
 from pydantic_ai import Agent
 from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
@@ -19,6 +18,8 @@ from mcp_optimizer.db.config import DatabaseConfig
 from mcp_optimizer.db.workload_tool_ops import WorkloadToolOps
 from mcp_optimizer.embeddings import EmbeddingManager
 from mcp_optimizer.server import find_tool
+
+from .models import ChosenMcpServerTool, McpOptimizerSearchResult, TestCase
 
 logger = structlog.get_logger(__name__)
 

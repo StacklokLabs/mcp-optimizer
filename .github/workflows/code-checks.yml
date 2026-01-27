@@ -7,14 +7,15 @@ on:
   workflow_call:
 
 jobs:
-  code_quality:
-    name: Code Quality
-    uses: ./.github/workflows/code-quality.yml
-
-  # Download models once, before image build
+  # Download models once, before image build and tests
   download_models:
     name: Download Models
     uses: ./.github/workflows/download-models.yml
+
+  code_quality:
+    name: Code Quality
+    uses: ./.github/workflows/code-quality.yml
+    needs: download_models
 
   image_build:
     name: Build Docker Image

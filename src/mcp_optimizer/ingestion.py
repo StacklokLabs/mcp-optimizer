@@ -32,7 +32,7 @@ from mcp_optimizer.mcp_client import (
     WorkloadConnectionError,
     determine_transport_type,
 )
-from mcp_optimizer.token_counter import TokenCounter
+from mcp_optimizer.response_optimizer.token_counter import TokenCounter
 from mcp_optimizer.toolhive.api_models.core import Workload
 from mcp_optimizer.toolhive.api_models.registry import ImageMetadata, Registry, RemoteServerMetadata
 from mcp_optimizer.toolhive.k8s_client import K8sClient

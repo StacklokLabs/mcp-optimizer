@@ -221,14 +221,47 @@ class MCPOptimizerConfig(BaseModel):
         description="Batch size for parallel workload ingestion (1-50)",
     )
 
-    # Tool response limiting configuration
-    max_tool_response_tokens: int | None = Field(
-        default=None,
+    # Response optimizer configuration
+    response_optimizer_enabled: bool = Field(
+        default=False,
+        description="Enable intelligent response optimization using structure-aware traversal "
+        "and summarization.",
+    )
+
+    response_optimizer_method: Literal["llmlingua", "truncation"] = Field(
+        default="llmlingua",
+        description="Method for summarizing content during response optimization. "
+        "'llmlingua' uses LLMLingua-2 for intelligent compression (requires ONNX model). "
+        "'truncation' uses simple token truncation (always available). "
+        "If 'llmlingua' is selected but unavailable, falls back to 'truncation' with a warning.",
+    )
+
+    response_optimizer_threshold: int = Field(
+        default=1000,
         ge=100,
         le=100000,
-        description="Maximum number of tokens to return from tool calls (100-100000). "
-        "Set to None to disable token limiting. "
-        "Responses exceeding this limit will be truncated or sampled.",
+        description="Token threshold above which response optimization is applied (100-100000).",
+    )
+
+    response_kv_ttl: int = Field(
+        default=300,
+        ge=60,
+        le=3600,
+        description="Time-to-live in seconds for stored original responses in KV store (60-3600).",
+    )
+
+    response_head_lines: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+        description="Number of lines to preserve from the start for unstructured text (1-100).",
+    )
+
+    response_tail_lines: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+        description="Number of lines to preserve from the end for unstructured text (1-100).",
     )
 
     # Group filtering configuration
@@ -270,6 +303,9 @@ class MCPOptimizerConfig(BaseModel):
         default=None,
         description="Path to LLMLingua ONNX model directory. "
         "Defaults to 'models/llmlingua' relative to package root if not set.",
+    )
+    llmlingua_model_path: str | None = Field(
+        default=None, description="Path to LLMLingua ONNX model directory"
     )
 
     @field_validator("skipped_workloads", mode="before")
@@ -554,7 +590,12 @@ def _populate_config_from_env() -> dict[str, Any]:
         "TOOLHIVE_SKIP_BACKOFF": "toolhive_skip_backoff",
         "REGISTRY_INGESTION_BATCH_SIZE": "registry_ingestion_batch_size",
         "WORKLOAD_INGESTION_BATCH_SIZE": "workload_ingestion_batch_size",
-        "MAX_TOOL_RESPONSE_TOKENS": "max_tool_response_tokens",
+        "RESPONSE_OPTIMIZER_ENABLED": "response_optimizer_enabled",
+        "RESPONSE_OPTIMIZER_METHOD": "response_optimizer_method",
+        "RESPONSE_OPTIMIZER_THRESHOLD": "response_optimizer_threshold",
+        "RESPONSE_KV_TTL": "response_kv_ttl",
+        "RESPONSE_HEAD_LINES": "response_head_lines",
+        "RESPONSE_TAIL_LINES": "response_tail_lines",
         "ALLOWED_GROUPS": "allowed_groups",
         "SKIPPED_WORKLOADS": "skipped_workloads",
         "RICH_TRACEBACKS": "rich_tracebacks",

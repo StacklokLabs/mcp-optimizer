@@ -84,6 +84,9 @@ jobs:
             sleep 1
           done
 
+      - name: Install Dependencies
+        run: task install
+
       - name: Generate ToolHive Models
         env:
           MANAGE_THV: "false"

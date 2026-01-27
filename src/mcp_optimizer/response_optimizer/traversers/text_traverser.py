@@ -1,0 +1,177 @@
+"""Text traverser for unstructured content using head/tail extraction."""
+
+from collections.abc import Callable
+
+from mcp_optimizer.response_optimizer.models import TraversalResult
+from mcp_optimizer.response_optimizer.traversers.base import BaseTraverser, Summarizer
+
+
+class TextTraverser(BaseTraverser):
+    """
+    Text traverser using head/tail extraction.
+
+    Algorithm:
+    1. Extract first N lines (default: 20)
+    2. Extract last M lines (default: 20)
+    3. Summarize middle section to fit remaining budget
+    4. Return: [head] + [SUMMARIZED: middle] + [tail]
+
+    Rationale:
+    - Beginning often contains: command output headers, initial status, setup info
+    - End often contains: final results, error messages, exit codes, summaries
+    - Middle typically contains: verbose logs, repeated patterns, incremental progress
+    """
+
+    def __init__(
+        self,
+        token_estimator: Callable[[str], int],
+        head_lines: int = 20,
+        tail_lines: int = 20,
+    ):
+        """
+        Initialize the text traverser.
+
+        Args:
+            token_estimator: Function that estimates token count for text
+            head_lines: Number of lines to preserve from start
+            tail_lines: Number of lines to preserve from end
+        """
+        super().__init__(token_estimator)
+        self.head_lines = head_lines
+        self.tail_lines = tail_lines
+
+    async def traverse(
+        self,
+        content: str,
+        max_tokens: int,
+        summarizer: Summarizer,
+    ) -> TraversalResult:
+        """Traverse unstructured text using head/tail extraction."""
+        original_tokens = self.estimate_tokens(content)
+
+        # If already within budget, return as-is
+        if original_tokens <= max_tokens:
+            return TraversalResult(
+                content=content,
+                original_tokens=original_tokens,
+                result_tokens=original_tokens,
+                sections_summarized=0,
+            )
+
+        lines = content.split("\n")
+        total_lines = len(lines)
+
+        # If content is small enough, just truncate
+        if total_lines <= self.head_lines + self.tail_lines + 5:
+            # Not enough lines to do head/tail extraction
+            truncated = self._simple_truncate(content, max_tokens)
+            return TraversalResult(
+                content=truncated,
+                original_tokens=original_tokens,
+                result_tokens=self.estimate_tokens(truncated),
+                sections_summarized=1,
+            )
+
+        # Calculate budget for middle summary
+        overhead_tokens = 50  # For markers and formatting
+        min_summary_budget = 50  # Minimum tokens for meaningful summary
+
+        # Start with configured head/tail lines
+        current_head_lines = self.head_lines
+        current_tail_lines = self.tail_lines
+
+        # Extract initial sections
+        head = "\n".join(lines[:current_head_lines])
+        tail = "\n".join(lines[-current_tail_lines:])
+
+        head_tokens = self.estimate_tokens(head)
+        tail_tokens = self.estimate_tokens(tail)
+        remaining_budget = max_tokens - head_tokens - tail_tokens - overhead_tokens
+
+        # If head + tail exceed budget, reduce lines to make room for middle summary
+        while remaining_budget < min_summary_budget and (
+            current_head_lines > 1 or current_tail_lines > 1
+        ):
+            # Reduce whichever is larger, favoring head reduction when equal
+            if current_head_lines >= current_tail_lines and current_head_lines > 1:
+                current_head_lines -= 1
+            elif current_tail_lines > 1:
+                current_tail_lines -= 1
+
+            # Recalculate sections
+            head = "\n".join(lines[:current_head_lines])
+            tail = "\n".join(lines[-current_tail_lines:])
+            head_tokens = self.estimate_tokens(head)
+            tail_tokens = self.estimate_tokens(tail)
+            remaining_budget = max_tokens - head_tokens - tail_tokens - overhead_tokens
+
+        # Check if we still don't have enough budget even with minimal head/tail
+        if remaining_budget < min_summary_budget:
+            # Even 1 line head + 1 line tail exceeds budget, summarize everything
+            summary_budget = max(max_tokens - overhead_tokens, min_summary_budget)
+            full_summary = await summarizer.summarize(content, summary_budget)
+            result = f"[Full content summarized ({total_lines} lines):]\n{full_summary}"
+            return TraversalResult(
+                content=result,
+                original_tokens=original_tokens,
+                result_tokens=self.estimate_tokens(result),
+                sections_summarized=1,
+                metadata={
+                    "strategy": "full_summarization",
+                    "total_lines": total_lines,
+                },
+            )
+
+        # We have budget for middle summary with head/tail preservation
+        middle_lines = total_lines - current_head_lines - current_tail_lines
+        middle = "\n".join(lines[current_head_lines:-current_tail_lines])
+        middle_summary = await summarizer.summarize(middle, remaining_budget)
+        middle_summary = f"[...{middle_lines} lines summarized:]\n{middle_summary}"
+
+        # Build result
+        result = f"{head}\n\n{middle_summary}\n\n{tail}"
+        result_tokens = self.estimate_tokens(result)
+
+        return TraversalResult(
+            content=result,
+            original_tokens=original_tokens,
+            result_tokens=result_tokens,
+            sections_summarized=1,
+            metadata={
+                "head_lines_used": current_head_lines,
+                "tail_lines_used": current_tail_lines,
+                "head_lines_configured": self.head_lines,
+                "tail_lines_configured": self.tail_lines,
+                "middle_lines_summarized": middle_lines,
+            },
+        )
+
+    def _simple_truncate(self, content: str, max_tokens: int) -> str:
+        """Simple truncation for small content."""
+        max_chars = max_tokens * 4
+        if len(content) <= max_chars:
+            return content
+
+        # Keep beginning with truncation marker
+        truncated = content[: max_chars - 30]
+        return truncated + "\n\n[...TRUNCATED...]"
+
+    def _truncate_to_tokens(self, content: str, max_tokens: int) -> str:
+        """Truncate content to fit within token budget."""
+        current_tokens = self.estimate_tokens(content)
+        if current_tokens <= max_tokens:
+            return content
+
+        # Binary search for the right length
+        lines = content.split("\n")
+        low, high = 0, len(lines)
+
+        while low < high:
+            mid = (low + high + 1) // 2
+            test_content = "\n".join(lines[:mid])
+            if self.estimate_tokens(test_content) <= max_tokens:
+                low = mid
+            else:
+                high = mid - 1
+
+        return "\n".join(lines[:low])
