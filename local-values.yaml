@@ -74,7 +74,7 @@ rbac:
   create: true
   rules:
     - apiGroups: ["toolhive.stacklok.dev"]
-      resources: ["mcpservers"]
+      resources: ["mcpservers", "virtualmcpservers"]
       verbs: ["get", "list", "watch"]
 
 database:
