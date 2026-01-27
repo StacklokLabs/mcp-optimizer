@@ -514,7 +514,7 @@ Configuration file: `~/Library/Application Support/Claude/claude_desktop_config.
 
 ## RBAC Configuration
 
-When running in-cluster, MCP Optimizer requires appropriate RBAC permissions to read MCPServer resources:
+When running in-cluster, MCP Optimizer requires appropriate RBAC permissions to read MCPServer and VirtualMCPServer resources:
 
 ```yaml
 apiVersion: v1
@@ -529,7 +529,7 @@ metadata:
   name: mcp-optimizer-reader
 rules:
 - apiGroups: ["toolhive.stacklok.dev"]
-  resources: ["mcpservers"]
+  resources: ["mcpservers", "virtualmcpservers"]
   verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

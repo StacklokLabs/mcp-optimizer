@@ -78,7 +78,7 @@ When NOT in-cluster (kubectl proxy):
 
 ## Required RBAC Permissions
 
-For the service account to access MCPServer CRDs, you need appropriate RBAC:
+For the service account to access MCPServer and VirtualMCPServer CRDs, you need appropriate RBAC:
 
 ```yaml
 apiVersion: v1
@@ -93,7 +93,7 @@ metadata:
   name: mcp-optimizer-reader
 rules:
 - apiGroups: ["toolhive.stacklok.dev"]
-  resources: ["mcpservers"]
+  resources: ["mcpservers", "virtualmcpservers"]
   verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -151,7 +151,7 @@ metadata:
   name: mcp-optimizer-reader
 rules:
 - apiGroups: ["toolhive.stacklok.dev"]
-  resources: ["mcpservers"]
+  resources: ["mcpservers", "virtualmcpservers"]
   verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

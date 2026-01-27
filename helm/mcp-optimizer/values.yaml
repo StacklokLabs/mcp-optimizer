@@ -112,7 +112,7 @@ rbac:
   rules:
     # Allow reading MCPServer CRDs
     - apiGroups: ["toolhive.stacklok.dev"]
-      resources: ["mcpservers"]
+      resources: ["mcpservers", "virtualmcpservers"]
       verbs: ["get", "list", "watch"]
 
 # Additional optional configurations
