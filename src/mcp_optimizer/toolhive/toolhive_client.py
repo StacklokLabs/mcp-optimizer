@@ -358,7 +358,7 @@ class ToolhiveClient:
         thv_version_port = [
             version_port
             for version_port in task_outcomes
-            if not isinstance(version_port, Exception)
+            if not isinstance(version_port, BaseException)
         ]
 
         thv_version_port.sort(key=lambda x: x[0], reverse=True)
