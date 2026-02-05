@@ -2155,7 +2155,7 @@ dev = [
     { name = "ty", specifier = ">=0.0.15" },
 ]
 examples = [
-    { name = "anthropic", specifier = ">=0.77.0" },
+    { name = "anthropic", specifier = ">=0.77.1" },
     { name = "matplotlib", specifier = ">=3.10.8" },
     { name = "pydantic-ai", specifier = ">=1.55.0" },
     { name = "rich", specifier = ">=14.3.2" },
