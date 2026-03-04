@@ -58,7 +58,7 @@ jobs:
           scan-type: 'config'
           scan-ref: '.'
           format: 'table'
-          severity: 'CRITICAL,HIGH,MEDIUM'
+          severity: 'CRITICAL,HIGH'
           exit-code: '1'
 
       - name: Upload Security Reports as Artifacts

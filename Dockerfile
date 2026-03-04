@@ -2,7 +2,7 @@
 FROM python:3.13-slim AS sqlite-vec-builder
 
 # Install build dependencies for compiling sqlite-vec
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     make \
