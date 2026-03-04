@@ -291,6 +291,15 @@ class MCPServerClient:
                 error=str(e),
             )
             raise WorkloadConnectionError(f"MCP protocol error: {e}") from e
+        except Exception as e:
+            # Catch-all for unexpected transport-level errors (httpx, OSError, etc.)
+            logger.error(
+                "Unexpected error during MCP session",
+                workload=self.workload,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            raise WorkloadConnectionError(f"Unexpected session error: {e}") from e
 
     async def _execute_streamable_session(
         self, operation: Callable[[ClientSession], Awaitable], url: str

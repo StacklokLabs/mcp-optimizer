@@ -372,11 +372,8 @@ class PollingManager:
 
         # ALWAYS run first poll (startup run is mandatory)
         logger.info("Running initial workload polling (startup)")
-        try:
-            await self._poll_workloads()
-            logger.info("Initial workload polling completed successfully")
-        except Exception as e:
-            logger.exception("Error during initial workload polling", error=str(e))
+        await self._poll_workloads()
+        logger.info("Initial workload polling completed successfully")
 
         # If interval <= 0, stop after initial run
         if self.workload_polling_interval <= 0:
@@ -418,14 +415,8 @@ class PollingManager:
                 cycle=cycle_count,
                 interval=self.workload_polling_interval,
             )
-            try:
-                await self._poll_workloads()
-                logger.info("Workload polling cycle completed successfully", cycle=cycle_count)
-            except Exception as e:
-                logger.exception(
-                    "Error during workload polling cycle", error=str(e), cycle=cycle_count
-                )
-                # Continue polling even if one cycle fails
+            await self._poll_workloads()
+            logger.info("Workload polling cycle completed successfully", cycle=cycle_count)
 
         logger.info("Workload polling loop ended", total_cycles=cycle_count)
 
@@ -442,11 +433,8 @@ class PollingManager:
 
         # ALWAYS run first poll (startup run is mandatory)
         logger.info("Running initial registry polling (startup)")
-        try:
-            await self._poll_registry()
-            logger.info("Initial registry polling completed successfully")
-        except Exception as e:
-            logger.exception("Error during initial registry polling", error=str(e))
+        await self._poll_registry()
+        logger.info("Initial registry polling completed successfully")
 
         # Signal workload polling that registry startup is complete
         if self._registry_startup_complete is not None:
@@ -479,14 +467,8 @@ class PollingManager:
                 cycle=cycle_count,
                 interval=self.registry_polling_interval,
             )
-            try:
-                await self._poll_registry()
-                logger.info("Registry polling cycle completed successfully", cycle=cycle_count)
-            except Exception as e:
-                logger.exception(
-                    "Error during registry polling cycle", error=str(e), cycle=cycle_count
-                )
-                # Continue polling even if one cycle fails
+            await self._poll_registry()
+            logger.info("Registry polling cycle completed successfully", cycle=cycle_count)
 
         logger.info("Registry polling loop ended", total_cycles=cycle_count)
 
@@ -498,23 +480,27 @@ class PollingManager:
             # Use the ingestion service to sync all workloads
             await self.ingestion_service.ingest_workloads(self.toolhive_client)
             logger.debug("Workload polling cycle completed successfully")
-        except Exception as e:
+        except (
+            ToolhiveConnectionError,
+            ToolhiveScanError,
+            ConnectionError,
+            ToolHiveUnavailable,
+        ) as e:
             # Handle ToolHive unavailability gracefully - log and continue polling
             # This allows the system to reconnect when ToolHive becomes available
-            if isinstance(
-                e,
-                (ToolhiveConnectionError, ToolhiveScanError, ConnectionError, ToolHiveUnavailable),
-            ):
-                logger.warning(
-                    "ToolHive unavailable during polling. Will retry on next polling cycle.",
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
-                # Don't re-raise - continue polling so we can reconnect later
-                return
-            logger.exception("Error during workload synchronization", error=str(e))
-            # Re-raise unexpected errors
-            raise
+            logger.warning(
+                "ToolHive unavailable during polling. Will retry on next polling cycle.",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+        except Exception as e:
+            # Log unexpected errors but never re-raise to keep the polling loop alive
+            logger.exception(
+                "Unexpected error during workload synchronization. "
+                "Will retry on next polling cycle.",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
 
     async def _poll_registry(self) -> None:
         """Poll ToolHive and synchronize the database with registry servers."""
@@ -524,23 +510,27 @@ class PollingManager:
             # Use the ingestion service to sync registry servers
             await self.ingestion_service.ingest_registry(self.toolhive_client)
             logger.debug("Registry polling cycle completed successfully")
-        except Exception as e:
+        except (
+            ToolhiveConnectionError,
+            ToolhiveScanError,
+            ConnectionError,
+            ToolHiveUnavailable,
+        ) as e:
             # Handle ToolHive unavailability gracefully - log and continue polling
             # This allows the system to reconnect when ToolHive becomes available
-            if isinstance(
-                e,
-                (ToolhiveConnectionError, ToolhiveScanError, ConnectionError, ToolHiveUnavailable),
-            ):
-                logger.warning(
-                    "ToolHive unavailable during polling. Will retry on next polling cycle.",
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
-                # Don't re-raise - continue polling so we can reconnect later
-                return
-            logger.exception("Error during registry synchronization", error=str(e))
-            # Re-raise unexpected errors
-            raise
+            logger.warning(
+                "ToolHive unavailable during polling. Will retry on next polling cycle.",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+        except Exception as e:
+            # Log unexpected errors but never re-raise to keep the polling loop alive
+            logger.exception(
+                "Unexpected error during registry synchronization. "
+                "Will retry on next polling cycle.",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
 
     def is_polling(self) -> bool:
         """Check if polling is currently active."""

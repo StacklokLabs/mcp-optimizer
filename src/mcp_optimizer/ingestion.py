@@ -1228,7 +1228,7 @@ class IngestionService:
                 server_name=server_metadata.name,
                 error=str(e),
             )
-            raise e
+            raise
 
     async def _ingest_registry_servers(  # noqa: C901
         self, registry: Registry, conn: AsyncConnection
@@ -1588,13 +1588,13 @@ class IngestionService:
                     error_type=type(e).__name__,
                 )
                 raise ToolHiveUnavailable("ToolHive server unavailable") from e
-            # For other errors, log warning and re-raise
+            # For other errors, log warning and raise as IngestionError
             logger.warning(
                 "Failed to fetch registry",
                 error=str(e),
                 error_type=type(e).__name__,
             )
-            raise
+            raise IngestionError(f"Failed to fetch registry: {e}") from e
 
     async def _get_all_workloads(self, toolhive_client: ToolhiveClient) -> list[Workload]:
         """Fetch all MCP workloads based on runtime mode.
@@ -1647,6 +1647,13 @@ class IngestionService:
                 "Will retry on next polling cycle."
             )
             return
+        except Exception as e:
+            logger.exception(
+                "Unexpected error fetching workloads - skipping ingestion cycle",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return
 
         # Fetch workload details for remote workloads to get accurate URLs
         # This is critical for URL-based matching instead of package-based matching
@@ -1680,106 +1687,115 @@ class IngestionService:
         # follow this pattern. Pass the `conn` object to all ops methods to ensure
         # they participate in the same transaction. Without this pattern, operations
         # execute independently and may result in partial updates on failure.
-        async with self.db_config.begin_transaction() as conn:
-            try:
-                if not all_workloads:
-                    logger.warning("No MCP workloads found in ToolHive")
-                    # Clean up all servers since none exist in ToolHive
-                    deleted_server_names = await self._cleanup_removed_servers(set(), conn)
-                else:
-                    # Extract workload identifiers for cleanup
-                    workload_identifiers = set()
-                    for workload in all_workloads:
-                        workload_identifiers.add(workload.name)
+        try:
+            async with self.db_config.begin_transaction() as conn:
+                try:
+                    if not all_workloads:
+                        logger.warning("No MCP workloads found in ToolHive")
+                        # Clean up all servers since none exist in ToolHive
+                        deleted_server_names = await self._cleanup_removed_servers(set(), conn)
+                    else:
+                        # Extract workload identifiers for cleanup
+                        workload_identifiers = set()
+                        for workload in all_workloads:
+                            workload_identifiers.add(workload.name)
 
-                    # Filter out workloads that should be skipped
-                    workloads_to_process = [
-                        workload
-                        for workload in all_workloads
-                        if not self._should_skip_workload(workload)
-                    ]
+                        # Filter out workloads that should be skipped
+                        workloads_to_process = [
+                            workload
+                            for workload in all_workloads
+                            if not self._should_skip_workload(workload)
+                        ]
 
-                    # Log skipped workloads
-                    for workload in all_workloads:
-                        skip_reason = self._get_skip_reason(workload)
-                        if skip_reason:
-                            log_level = (
-                                logger.warning
-                                if "missing or empty name" in skip_reason
-                                else logger.debug
-                            )
-                            log_level(
-                                "Skipping workload during ingestion",
-                                workload_name=workload.name or "<no name>",
-                                reason=skip_reason,
-                            )
+                        # Log skipped workloads
+                        for workload in all_workloads:
+                            skip_reason = self._get_skip_reason(workload)
+                            if skip_reason:
+                                log_level = (
+                                    logger.warning
+                                    if "missing or empty name" in skip_reason
+                                    else logger.debug
+                                )
+                                log_level(
+                                    "Skipping workload during ingestion",
+                                    workload_name=workload.name or "<no name>",
+                                    reason=skip_reason,
+                                )
 
-                    # Process all workloads in batches
-                    process_tasks = [
-                        self._process_workload(workload, conn) for workload in workloads_to_process
-                    ]
-                    results = await self._batch_gather(
-                        process_tasks, self.workload_ingestion_batch_size
-                    )
+                        # Process all workloads in batches
+                        process_tasks = [
+                            self._process_workload(workload, conn)
+                            for workload in workloads_to_process
+                        ]
+                        results = await self._batch_gather(
+                            process_tasks, self.workload_ingestion_batch_size
+                        )
 
-                    # Process results
-                    for workload, result in zip(workloads_to_process, results, strict=True):
-                        if isinstance(result, Exception):
-                            failed += 1
-                            logger.exception(
-                                f"Failed to process workload '{workload.name}' in transaction",
-                                workload_name=workload.name,
-                                workload_remote=workload.remote or False,
-                                workload_url=workload.url,
-                                workload_package=workload.package,
-                                error=str(result),
-                                error_type=type(result).__name__,
-                            )
-                        elif result["status"] == "success":
-                            num_ingested += result["was_updated"]
-                            total_tools += result["tools_count"]
-                            logger.debug(
-                                "Successfully processed workload",
-                                workload_name=workload.name,
-                                workload_remote=workload.remote or False,
-                                tools_count=result["tools_count"],
-                            )
-                        else:
-                            failed += 1
-                            logger.warning(
-                                "Failed to process workload - see details above",
-                                workload_name=workload.name,
-                                workload_remote=workload.remote or False,
-                                workload_url=workload.url,
-                                error=result.get("error"),
-                            )
+                        # Process results
+                        for workload, result in zip(workloads_to_process, results, strict=True):
+                            if isinstance(result, Exception):
+                                failed += 1
+                                logger.exception(
+                                    f"Failed to process workload '{workload.name}' in transaction",
+                                    workload_name=workload.name,
+                                    workload_remote=workload.remote or False,
+                                    workload_url=workload.url,
+                                    workload_package=workload.package,
+                                    error=str(result),
+                                    error_type=type(result).__name__,
+                                )
+                            elif result["status"] == "success":
+                                num_ingested += result["was_updated"]
+                                total_tools += result["tools_count"]
+                                logger.debug(
+                                    "Successfully processed workload",
+                                    workload_name=workload.name,
+                                    workload_remote=workload.remote or False,
+                                    tools_count=result["tools_count"],
+                                )
+                            else:
+                                failed += 1
+                                logger.warning(
+                                    "Failed to process workload - see details above",
+                                    workload_name=workload.name,
+                                    workload_remote=workload.remote or False,
+                                    workload_url=workload.url,
+                                    error=result.get("error"),
+                                )
 
-                    # Clean up servers that are no longer in ToolHive
-                    deleted_server_names = await self._cleanup_removed_servers(
-                        workload_identifiers, conn
-                    )
+                        # Clean up servers that are no longer in ToolHive
+                        deleted_server_names = await self._cleanup_removed_servers(
+                            workload_identifiers, conn
+                        )
 
-                # Only sync vector tables if there were changes
-                # (successful ingestions or deleted servers indicate changes)
-                if num_ingested > 0 or deleted_server_names:
-                    logger.info(
-                        "Synchronizing workload vector tables after ingestion",
-                        successful_ingestions=num_ingested,
-                        deleted_servers=len(deleted_server_names),
-                    )
-                    # Sync workload server and tool vectors
-                    await self.workload_server_ops.sync_server_vectors(conn=conn)
-                    await self.workload_tool_ops.sync_tool_vectors(conn=conn)
+                    # Only sync vector tables if there were changes
+                    # (successful ingestions or deleted servers indicate changes)
+                    if num_ingested > 0 or deleted_server_names:
+                        logger.info(
+                            "Synchronizing workload vector tables after ingestion",
+                            successful_ingestions=num_ingested,
+                            deleted_servers=len(deleted_server_names),
+                        )
+                        # Sync workload server and tool vectors
+                        await self.workload_server_ops.sync_server_vectors(conn=conn)
+                        await self.workload_tool_ops.sync_tool_vectors(conn=conn)
 
-                    # Sync FTS table for BM25 search (workload tools only)
-                    await self.workload_tool_ops.sync_tool_fts(conn=conn)
-                    logger.info("Workload vector and FTS synchronization completed")
-                else:
-                    logger.info("Workload ingestion: no changes detected, skipping vector sync")
+                        # Sync FTS table for BM25 search (workload tools only)
+                        await self.workload_tool_ops.sync_tool_fts(conn=conn)
+                        logger.info("Workload vector and FTS synchronization completed")
+                    else:
+                        logger.info("Workload ingestion: no changes detected, skipping vector sync")
 
-            except Exception as e:
-                logger.exception("Transaction failed, rolling back all changes", error=str(e))
-                raise  # Re-raise to trigger rollback
+                except Exception as e:
+                    logger.error("Transaction failed, rolling back all changes", error=str(e))
+                    raise  # Re-raise to trigger rollback
+        except Exception as e:
+            logger.exception(
+                "Workload ingestion transaction failed - will retry on next cycle",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return
 
     async def ingest_registry(self, toolhive_client: ToolhiveClient) -> None:
         """Ingest registry servers from Toolhive.
@@ -1822,6 +1838,13 @@ class IngestionService:
                 "Will retry on next polling cycle."
             )
             return
+        except Exception as e:
+            logger.exception(
+                "Unexpected error fetching registry - skipping ingestion cycle",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return
 
         # Wrap all database operations in a single transaction for atomicity.
         # This ensures all registry server ingestions and vector table updates
@@ -1830,35 +1853,44 @@ class IngestionService:
         # TRANSACTION PATTERN: All database operations requiring atomicity should
         # follow this pattern. Pass the `conn` object to all ops methods to ensure
         # they participate in the same transaction.
-        async with self.db_config.begin_transaction() as conn:
-            try:
-                # Ingest all registry servers
-                registry_servers_count = 0
-                if registry:
-                    registry_servers_count = await self._ingest_registry_servers(registry, conn)
-                    logger.info(
-                        "Ingested registry servers", registry_servers_count=registry_servers_count
-                    )
-                else:
-                    logger.warning("No registry available to ingest")
+        try:
+            async with self.db_config.begin_transaction() as conn:
+                try:
+                    # Ingest all registry servers
+                    registry_servers_count = 0
+                    if registry:
+                        registry_servers_count = await self._ingest_registry_servers(registry, conn)
+                        logger.info(
+                            "Ingested registry servers",
+                            registry_servers_count=registry_servers_count,
+                        )
+                    else:
+                        logger.warning("No registry available to ingest")
 
-                # Only sync vector tables if there were changes
-                # (successful registry server ingestions indicate changes)
-                if registry_servers_count > 0:
-                    logger.info(
-                        "Synchronizing registry vector tables after ingestion",
-                        registry_servers_ingested=registry_servers_count,
-                    )
-                    # Sync registry server and tool vectors
-                    await self.registry_server_ops.sync_server_vectors(conn=conn)
-                    await self.registry_tool_ops.sync_tool_vectors(conn=conn)
+                    # Only sync vector tables if there were changes
+                    # (successful registry server ingestions indicate changes)
+                    if registry_servers_count > 0:
+                        logger.info(
+                            "Synchronizing registry vector tables after ingestion",
+                            registry_servers_ingested=registry_servers_count,
+                        )
+                        # Sync registry server and tool vectors
+                        await self.registry_server_ops.sync_server_vectors(conn=conn)
+                        await self.registry_tool_ops.sync_tool_vectors(conn=conn)
 
-                    # Sync FTS table for BM25 search (registry tools)
-                    await self.registry_tool_ops.sync_tool_fts(conn=conn)
-                    logger.info("Registry vector and FTS synchronization completed")
-                else:
-                    logger.info("Registry ingestion: no changes detected, skipping vector sync")
+                        # Sync FTS table for BM25 search (registry tools)
+                        await self.registry_tool_ops.sync_tool_fts(conn=conn)
+                        logger.info("Registry vector and FTS synchronization completed")
+                    else:
+                        logger.info("Registry ingestion: no changes detected, skipping vector sync")
 
-            except Exception as e:
-                logger.exception("Transaction failed, rolling back all changes", error=str(e))
-                raise  # Re-raise to trigger rollback
+                except Exception as e:
+                    logger.error("Transaction failed, rolling back all changes", error=str(e))
+                    raise  # Re-raise to trigger rollback
+        except Exception as e:
+            logger.exception(
+                "Registry ingestion transaction failed - will retry on next cycle",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return

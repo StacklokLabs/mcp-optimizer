@@ -440,6 +440,9 @@ class ToolhiveClient:
             for attempt in range(self.max_retries):
                 try:
                     return await func(*args, **kwargs)
+                # Only httpx transport errors are retried; any other exception
+                # propagates immediately. The caller (_execute_with_session)
+                # converts those to WorkloadConnectionError for per-workload isolation.
                 except (
                     httpx.ConnectError,
                     httpx.ConnectTimeout,
