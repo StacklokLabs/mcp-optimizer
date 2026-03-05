@@ -37,11 +37,29 @@ jobs:
       - name: Run Tests
         run: task test
 
-      - name: Run Security Scanning
+      - name: Run Bandit Security Scanning
         run: task security
 
       - name: Generate SBOM
         run: task sbom
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # v0.34.2
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL'
+          exit-code: '1'
+          format: 'table'
+      
+      - name: Run Trivy configuration scanner
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # v0.34.2
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
 
       - name: Upload Security Reports as Artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -50,6 +68,5 @@ jobs:
           name: security-reports
           path: |
             bandit-report.json
-            pip-audit-report.json
             sbom.json
           retention-days: 30

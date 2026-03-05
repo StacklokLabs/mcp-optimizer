@@ -44,13 +44,10 @@ tasks:
       - security
 
   security:
-    desc: Run security scanning
+    desc: Run security scanning (bandit for code, trivy for dependencies in CI)
     cmds:
       - uv run bandit -r src/
-      # TODO: Remove --ignore-vuln once protobuf releases a fix for CVE-2026-0994
-      - uv run pip-audit --ignore-vuln CVE-2026-0994
       - uv run bandit -r src/ -f json -o bandit-report.json || true
-      - uv run pip-audit --ignore-vuln CVE-2026-0994 --format=json --output=pip-audit-report.json || true
     deps:
       - install
 
