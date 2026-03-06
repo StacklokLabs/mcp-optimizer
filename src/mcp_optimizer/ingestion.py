@@ -76,6 +76,12 @@ class SeparatedWorkloads(NamedTuple):
     workload_details: list[str]
 
 
+class FetchedWorkloadTools(NamedTuple):
+    """Result of fetching tools from a workload's MCP server (network-only phase)."""
+
+    tools_result: ListToolsResult
+
+
 class IngestionService:
     """Service for ingesting workloads and tools from Toolhive into the database."""
 
@@ -941,16 +947,38 @@ class IngestionService:
         )
         return (tools_count, True)
 
-    async def _process_workload(self, workload: Workload, conn: AsyncConnection) -> dict[str, Any]:
-        """Process a single workload with registry matching (US2).
+    async def _fetch_workload_tools(self, workload: Workload) -> FetchedWorkloadTools:
+        """Fetch tools from a workload's MCP server (network-only, no DB access).
 
-        This method implements US2 functionality:
-        1. Creates/updates workload server with registry matching
-        2. Syncs tools with appropriate context (registry or workload name)
-        3. Calculates autonomous embeddings if not linked to registry
+        This runs outside the DB transaction to avoid holding write locks
+        during network I/O.
+
+        Args:
+            workload: Workload to fetch tools from
+
+        Returns:
+            FetchedWorkloadTools with the tools result
+        """
+        mcp_client = MCPServerClient(
+            workload, timeout=self.mcp_timeout, runtime_mode=self.runtime_mode
+        )
+        tools_result = await mcp_client.list_tools()
+        return FetchedWorkloadTools(tools_result=tools_result)
+
+    async def _process_workload(
+        self,
+        workload: Workload,
+        fetched_tools: FetchedWorkloadTools,
+        conn: AsyncConnection,
+    ) -> dict[str, Any]:
+        """Process a single workload with pre-fetched tools (DB-only phase).
+
+        This method runs inside the DB transaction and performs only DB operations.
+        Network I/O (tool fetching) must be done beforehand via _fetch_workload_tools.
 
         Args:
             workload: Workload to process
+            fetched_tools: Pre-fetched tools from _fetch_workload_tools
             conn: Database connection
 
         Returns:
@@ -982,15 +1010,9 @@ class IngestionService:
                 else (workload.name or "unknown")
             )
 
-            # Get tools from MCP server
-            mcp_client = MCPServerClient(
-                workload, timeout=self.mcp_timeout, runtime_mode=self.runtime_mode
-            )
-            tools_result = await mcp_client.list_tools()
-
             # Sync tools with appropriate context
             tools_count, tools_were_updated = await self._sync_workload_tools(
-                server_id, server_name_context, tools_result, conn
+                server_id, server_name_context, fetched_tools.tools_result, conn
             )
 
             # Track if anything was updated
@@ -1679,14 +1701,48 @@ class IngestionService:
                     # Set package to None to trigger skip in later processing
                     workload.package = None
 
-        # Wrap all database operations in a single transaction for atomicity.
-        # This ensures all workload updates, tool syncs, and vector table updates
-        # either complete successfully together or roll back entirely on error.
-        #
-        # TRANSACTION PATTERN: All database operations requiring atomicity should
-        # follow this pattern. Pass the `conn` object to all ops methods to ensure
-        # they participate in the same transaction. Without this pattern, operations
-        # execute independently and may result in partial updates on failure.
+        # Phase 1: Prepare workloads and fetch tools OUTSIDE transaction.
+        # Network I/O (mcp_client.list_tools()) is done here to avoid holding
+        # the SQLite write lock during potentially slow network calls.
+        if not all_workloads:
+            workloads_to_process = []
+            workload_identifiers: set[str] = set()
+        else:
+            # Extract workload identifiers for cleanup
+            workload_identifiers = set()
+            for workload in all_workloads:
+                workload_identifiers.add(workload.name)
+
+            # Filter out workloads that should be skipped
+            workloads_to_process = [
+                workload for workload in all_workloads if not self._should_skip_workload(workload)
+            ]
+
+            # Log skipped workloads
+            for workload in all_workloads:
+                skip_reason = self._get_skip_reason(workload)
+                if skip_reason:
+                    log_level = (
+                        logger.warning if "missing or empty name" in skip_reason else logger.debug
+                    )
+                    log_level(
+                        "Skipping workload during ingestion",
+                        workload_name=workload.name or "<no name>",
+                        reason=skip_reason,
+                    )
+
+        # Fetch tools from all workloads in batches (network I/O, no DB lock)
+        fetch_results: list[FetchedWorkloadTools | Exception] = []
+        if workloads_to_process:
+            fetch_tasks = [
+                self._fetch_workload_tools(workload) for workload in workloads_to_process
+            ]
+            fetch_results = await self._batch_gather(
+                fetch_tasks, self.workload_ingestion_batch_size
+            )
+
+        # Phase 2: Write to DB inside a short-lived transaction.
+        # Only DB operations happen here — no network I/O.
         try:
             async with self.db_config.begin_transaction() as conn:
                 try:
@@ -1695,44 +1751,26 @@ class IngestionService:
                         # Clean up all servers since none exist in ToolHive
                         deleted_server_names = await self._cleanup_removed_servers(set(), conn)
                     else:
-                        # Extract workload identifiers for cleanup
-                        workload_identifiers = set()
-                        for workload in all_workloads:
-                            workload_identifiers.add(workload.name)
-
-                        # Filter out workloads that should be skipped
-                        workloads_to_process = [
-                            workload
-                            for workload in all_workloads
-                            if not self._should_skip_workload(workload)
-                        ]
-
-                        # Log skipped workloads
-                        for workload in all_workloads:
-                            skip_reason = self._get_skip_reason(workload)
-                            if skip_reason:
-                                log_level = (
-                                    logger.warning
-                                    if "missing or empty name" in skip_reason
-                                    else logger.debug
+                        # Process workloads that were successfully fetched
+                        for workload, fetch_result in zip(
+                            workloads_to_process, fetch_results, strict=True
+                        ):
+                            if isinstance(fetch_result, Exception):
+                                failed += 1
+                                logger.warning(
+                                    "Failed to fetch tools from workload",
+                                    workload_name=workload.name,
+                                    workload_remote=workload.remote or False,
+                                    workload_url=workload.url,
+                                    workload_package=workload.package,
+                                    error=str(fetch_result),
+                                    error_type=type(fetch_result).__name__,
                                 )
-                                log_level(
-                                    "Skipping workload during ingestion",
-                                    workload_name=workload.name or "<no name>",
-                                    reason=skip_reason,
-                                )
+                                continue
 
-                        # Process all workloads in batches
-                        process_tasks = [
-                            self._process_workload(workload, conn)
-                            for workload in workloads_to_process
-                        ]
-                        results = await self._batch_gather(
-                            process_tasks, self.workload_ingestion_batch_size
-                        )
+                            # Write fetched data to DB
+                            result = await self._process_workload(workload, fetch_result, conn)
 
-                        # Process results
-                        for workload, result in zip(workloads_to_process, results, strict=True):
                             if isinstance(result, Exception):
                                 failed += 1
                                 logger.exception(

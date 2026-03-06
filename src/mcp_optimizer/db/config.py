@@ -108,6 +108,9 @@ class DatabaseConfig:
                 "sqlite-vec extension loaded but vec_version() check failed"
             ) from verify_exc
 
+        # Enable WAL mode for better read concurrency during write transactions
+        await connection.execute(text("PRAGMA journal_mode=WAL"))
+
         # Set PRAGMA foreign_keys
         await connection.execute(text("PRAGMA foreign_keys=ON"))
 
@@ -129,7 +132,7 @@ class DatabaseConfig:
             await self._ensure_sqlite_vec_loaded(connection)
 
             # Set busy timeout to handle waiting for locks
-            await connection.execute(text("PRAGMA busy_timeout = 30000"))
+            await connection.execute(text("PRAGMA busy_timeout = 5000"))
 
             # Begin IMMEDIATE transaction to acquire write lock immediately
             await connection.execute(text("BEGIN IMMEDIATE"))
