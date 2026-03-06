@@ -174,22 +174,26 @@ class TestPollingManager:
         mock_ingest_registry.assert_called_once_with(polling_manager.toolhive_client)
 
     async def test_poll_and_sync_with_error(self, polling_manager):
-        """Test that polling continues even if sync fails."""
+        """Test that polling swallows unexpected errors to keep the loop alive."""
         # Mock the ingestion service to raise an error
         mock_ingest = AsyncMock(side_effect=Exception("Test error"))
         polling_manager.ingestion_service.ingest_workloads = mock_ingest
 
-        # Should raise the exception
-        with pytest.raises(Exception, match="Test error"):
-            await polling_manager._poll_workloads()
+        # Should NOT raise - unexpected errors are swallowed to keep polling alive
+        await polling_manager._poll_workloads()
 
     async def test_polling_loop_with_error(self, polling_manager):
-        """Test that polling loop continues even if individual cycles fail."""
+        """Test that polling loop continues even if individual cycles fail.
+
+        _poll_workloads swallows all exceptions internally, so the loop
+        keeps running even when the underlying ingestion service raises.
+        We mock at the ingest_workloads level to verify this end-to-end.
+        """
         call_count = 0
         first_call_event = asyncio.Event()
         second_call_event = asyncio.Event()
 
-        async def mock_poll_workloads():
+        async def mock_ingest_workloads(_client):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -205,14 +209,17 @@ class TestPollingManager:
             if polling_manager._registry_startup_complete:
                 polling_manager._registry_startup_complete.set()
 
-        with (
-            patch.object(polling_manager, "_poll_workloads", side_effect=mock_poll_workloads),
-            patch.object(polling_manager, "_registry_polling_loop", side_effect=mock_registry_loop),
+        polling_manager.ingestion_service.ingest_workloads = AsyncMock(
+            side_effect=mock_ingest_workloads
+        )
+
+        with patch.object(
+            polling_manager, "_registry_polling_loop", side_effect=mock_registry_loop
         ):
             # Start polling
             await polling_manager.start_polling()
 
-            # Wait for the first call to complete (which should fail)
+            # Wait for the first call to complete (which should fail but be swallowed)
             await asyncio.wait_for(first_call_event.wait(), timeout=1.0)
 
             # Wait for the second call to complete (which should succeed)
