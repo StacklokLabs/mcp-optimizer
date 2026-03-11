@@ -51,7 +51,7 @@ jobs:
           uv tool install "mcp-tef-cli @ git+https://github.com/StacklokLabs/mcp-tef.git@cli-v0.0.3#subdirectory=cli"
 
       - name: Install ToolHive
-        uses: StacklokLabs/toolhive-actions/install@6a095f99aa2fd6cd92cf0bb94bdf509b99820c06 # v0.0.3
+        uses: StacklokLabs/toolhive-actions/install@9fb5f21a59fe9f9ffaba79ed0563997161acefc1 # v0.0.4
 
       - name: Run ToolHive server
         run: |
