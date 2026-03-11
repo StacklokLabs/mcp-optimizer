@@ -33,7 +33,7 @@ dev = [
     "pytest-cov>=7.0.0",
 ]
 security = [
-    "bandit[toml]>=1.9.3",
+    "bandit[toml]>=1.9.4",
     "cyclonedx-bom>=7.2.2",
 ]
 examples = [
