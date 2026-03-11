@@ -40,7 +40,7 @@ examples = [
     "anthropic>=0.79.0",
     "pydantic-ai>=1.57.0",
     "matplotlib>=3.10.8",
-    "rich>=14.3.2",
+    "rich>=14.3.3",
 ]
 offline-models = [
     "optimum[onnxruntime]>=2.1.0",
