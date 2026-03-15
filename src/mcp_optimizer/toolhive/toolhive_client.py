@@ -557,10 +557,38 @@ class ToolhiveClient:
             response.raise_for_status()
 
             data = response.json()
-            workload_list = WorkloadListResponse.model_validate(data)
-            if workload_list is None or workload_list.workloads is None:
+
+            raw_workloads = data.get("workloads") if isinstance(data, dict) else None
+            if not isinstance(raw_workloads, list):
                 logger.warning("No workloads found", all_workloads=all_workloads)
                 return WorkloadListResponse(workloads=[])
+
+            # Validate workloads individually so one bad workload
+            # (e.g. unknown transport_type) doesn't kill discovery of all others.
+            valid_workloads: list[Workload] = []
+            for i, raw_workload in enumerate(raw_workloads):
+                try:
+                    valid_workloads.append(Workload.model_validate(raw_workload))
+                except Exception as e:
+                    name = (
+                        raw_workload.get("name", f"index-{i}")
+                        if isinstance(raw_workload, dict)
+                        else f"index-{i}"
+                    )
+                    logger.warning(
+                        "Skipping workload with invalid data",
+                        workload_name=name,
+                        error=str(e),
+                        exc_info=False,
+                    )
+
+            skipped_count = len(raw_workloads) - len(valid_workloads)
+            if skipped_count:
+                logger.warning(
+                    f"Failed to validate {skipped_count} out of "
+                    f"{len(raw_workloads)} workloads. "
+                    f"Returning {len(valid_workloads)} valid workloads.",
+                )
 
             # Replace the localhost/127.0.0.1 host with the toolhive host
             # This is required since in docker/podman container, we cannot use
@@ -568,7 +596,7 @@ class ToolhiveClient:
             # Only replace when actually running in Docker to avoid breaking
             # local runs when TOOLHIVE_HOST is set to host.docker.internal
             if _is_running_in_docker() and self.thv_host not in ("localhost", "127.0.0.1"):
-                for workload in workload_list.workloads:
+                for workload in valid_workloads:
                     if workload.url:
                         parsed_url = urlparse(workload.url)
                         workload_host = parsed_url.hostname
@@ -577,11 +605,11 @@ class ToolhiveClient:
 
             logger.info(
                 "Successfully fetched workloads",
-                count=len(workload_list.workloads),
+                count=len(valid_workloads),
                 all_workloads=all_workloads,
             )
 
-            return workload_list
+            return WorkloadListResponse(workloads=valid_workloads)
 
         return await self._with_retry(_list_workloads_impl)()
 

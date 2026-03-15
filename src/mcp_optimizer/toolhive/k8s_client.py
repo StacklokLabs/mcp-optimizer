@@ -165,7 +165,15 @@ class K8sClient:
         else:
             # Regular MCPServer - get transport from spec
             transport_str = spec.get("transport", "stdio")
-            transport_type = TransportType(transport_str) if transport_str else None
+            try:
+                transport_type = TransportType(transport_str) if transport_str else None
+            except ValueError:
+                logger.warning(
+                    "Unknown transport type in K8s workload, defaulting to None",
+                    workload_name=name,
+                    transport_type=transport_str,
+                )
+                transport_type = None
 
         # Map k8s phase to workload status
         # Phases: Pending, Running, Failed, Unknown (MCPServer)

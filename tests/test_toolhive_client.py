@@ -638,3 +638,203 @@ async def test_get_workload_details_timeout(toolhive_client):
         # Call the method and expect an exception
         with pytest.raises(httpx.TimeoutException):
             await client.get_workload_details("test-server")
+
+
+# Tests for workload validation resilience
+
+
+@pytest.mark.asyncio
+async def test_list_workloads_skips_invalid_transport_type(toolhive_client):
+    """Test that a workload with an unknown transport_type is skipped, not fatal."""
+    response_data = {
+        "workloads": [
+            {
+                "name": "valid-server",
+                "package": "test/valid:latest",
+                "url": "http://127.0.0.1:8080/sse#valid-server",
+                "port": 8080,
+                "transport_type": "stdio",
+                "status": "running",
+            },
+            {
+                "name": "bad-transport-server",
+                "package": "test/bad:latest",
+                "url": "http://127.0.0.1:8081/sse#bad-server",
+                "port": 8081,
+                "transport_type": "grpc",
+                "status": "running",
+            },
+            {
+                "name": "another-valid-server",
+                "package": "test/valid2:latest",
+                "url": "http://127.0.0.1:8082/sse#valid2",
+                "port": 8082,
+                "transport_type": "sse",
+                "status": "running",
+            },
+        ]
+    }
+
+    async with toolhive_client as client:
+        # Mock the HTTP client
+        mock_response = Mock()
+        mock_response.json.return_value = response_data
+        mock_response.raise_for_status = Mock()
+
+        client._client.get = AsyncMock(return_value=mock_response)
+
+        # Call the method
+        result = await client.list_workloads()
+
+        # Verify valid workloads are returned and invalid one is skipped
+        assert isinstance(result, WorkloadListResponse)
+        assert len(result.workloads) == 2
+        names = [w.name for w in result.workloads]
+        assert "valid-server" in names
+        assert "another-valid-server" in names
+        assert "bad-transport-server" not in names
+
+
+@pytest.mark.asyncio
+async def test_list_workloads_empty_transport_type(toolhive_client):
+    """Test that a workload with transport_type='' is skipped (the original bug)."""
+    response_data = {
+        "workloads": [
+            {
+                "name": "good-server",
+                "package": "test/good:latest",
+                "url": "http://127.0.0.1:8080/sse#good",
+                "port": 8080,
+                "transport_type": "stdio",
+                "status": "running",
+            },
+            {
+                "name": "zombie-workload",
+                "package": "test/zombie:latest",
+                "url": "http://127.0.0.1:8081/sse#zombie",
+                "port": 8081,
+                "transport_type": "",
+                "status": "running",
+            },
+        ]
+    }
+
+    async with toolhive_client as client:
+        # Mock the HTTP client
+        mock_response = Mock()
+        mock_response.json.return_value = response_data
+        mock_response.raise_for_status = Mock()
+
+        client._client.get = AsyncMock(return_value=mock_response)
+
+        # Call the method
+        result = await client.list_workloads()
+
+        # Verify the invalid workload is skipped
+        assert isinstance(result, WorkloadListResponse)
+        assert len(result.workloads) == 1
+        assert result.workloads[0].name == "good-server"
+
+
+@pytest.mark.asyncio
+async def test_list_workloads_all_invalid(toolhive_client):
+    """Test that all-invalid workloads returns empty list, not an exception."""
+    response_data = {
+        "workloads": [
+            {
+                "name": "bad-1",
+                "transport_type": "unknown-type",
+            },
+            {
+                "name": "bad-2",
+                "transport_type": "",
+            },
+        ]
+    }
+
+    async with toolhive_client as client:
+        # Mock the HTTP client
+        mock_response = Mock()
+        mock_response.json.return_value = response_data
+        mock_response.raise_for_status = Mock()
+
+        client._client.get = AsyncMock(return_value=mock_response)
+
+        # Call the method
+        result = await client.list_workloads()
+
+        # Verify empty list returned, not an exception
+        assert isinstance(result, WorkloadListResponse)
+        assert len(result.workloads) == 0
+
+
+@pytest.mark.asyncio
+async def test_list_workloads_missing_workloads_key(toolhive_client):
+    """Test that a response missing the 'workloads' key returns empty list."""
+    async with toolhive_client as client:
+        # Mock the HTTP client
+        mock_response = Mock()
+        mock_response.json.return_value = {}
+        mock_response.raise_for_status = Mock()
+
+        client._client.get = AsyncMock(return_value=mock_response)
+
+        # Call the method
+        result = await client.list_workloads()
+
+        # Verify the result
+        assert isinstance(result, WorkloadListResponse)
+        assert len(result.workloads) == 0
+
+
+@pytest.mark.asyncio
+async def test_list_workloads_null_workloads_value(toolhive_client):
+    """Test that a response with workloads=null returns empty list."""
+    async with toolhive_client as client:
+        # Mock the HTTP client
+        mock_response = Mock()
+        mock_response.json.return_value = {"workloads": None}
+        mock_response.raise_for_status = Mock()
+
+        client._client.get = AsyncMock(return_value=mock_response)
+
+        # Call the method
+        result = await client.list_workloads()
+
+        # Verify the result
+        assert isinstance(result, WorkloadListResponse)
+        assert len(result.workloads) == 0
+
+
+@pytest.mark.asyncio
+async def test_list_workloads_non_dict_entry_in_list(toolhive_client):
+    """Test that a non-dict entry in the workloads list is skipped."""
+    response_data = {
+        "workloads": [
+            "not-a-dict",
+            {
+                "name": "valid-server",
+                "package": "test/valid:latest",
+                "url": "http://127.0.0.1:8080/sse#valid",
+                "port": 8080,
+                "transport_type": "stdio",
+                "status": "running",
+            },
+        ]
+    }
+
+    async with toolhive_client as client:
+        # Mock the HTTP client
+        mock_response = Mock()
+        mock_response.json.return_value = response_data
+        mock_response.raise_for_status = Mock()
+
+        client._client.get = AsyncMock(return_value=mock_response)
+
+        # Call the method
+        result = await client.list_workloads()
+
+        # Verify the non-dict entry is skipped and the valid one survives
+        assert isinstance(result, WorkloadListResponse)
+        assert len(result.workloads) == 1
+        assert result.workloads[0].name == "valid-server"
