@@ -332,7 +332,7 @@ class BaseToolOps(ABC):
 
             tool = self.tool_model_class.model_validate(row_data)
             tool_with_metadata = self.tool_with_metadata_model_class(
-                tool=tool,
+                tool=cast(Any, tool),
                 server_name=server_name,
                 server_description=server_description,
                 distance=0.0,  # Distance not applicable for get_all
@@ -1041,7 +1041,7 @@ class BaseToolOps(ABC):
 
             # Create metadata object
             tool_with_metadata = self.tool_with_metadata_model_class(
-                tool=tool,
+                tool=cast(Any, tool),
                 server_name=server_name,
                 server_description=server_description,
                 distance=distance,

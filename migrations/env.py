@@ -1,3 +1,5 @@
+from typing import Any
+
 from alembic import context
 from sqlalchemy import create_engine, event, pool
 
@@ -58,7 +60,7 @@ def run_migrations_online() -> None:
         raise ValueError("db_url is required for migrations")
 
     # Add SQLite-specific connection args for read-only root filesystem environments
-    engine_kwargs = {"poolclass": pool.NullPool}
+    engine_kwargs: dict[str, Any] = {"poolclass": pool.NullPool}
     if db_url.startswith("sqlite://"):
         # Ensure absolute path
         if db_url.startswith("sqlite:///"):
