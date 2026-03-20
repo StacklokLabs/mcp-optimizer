@@ -753,7 +753,7 @@ class IngestionService:
                 return (existing_server.id, False)
 
             # Update server
-            update_kwargs = {
+            update_kwargs: dict[str, Any] = {
                 "status": status,
                 "transport": transport,
                 "url": workload.url,

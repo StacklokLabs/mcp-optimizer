@@ -571,7 +571,7 @@ class ToolhiveClient:
                     valid_workloads.append(Workload.model_validate(raw_workload))
                 except Exception as e:
                     name = (
-                        raw_workload.get("name", f"index-{i}")
+                        cast(dict[str, Any], raw_workload).get("name", f"index-{i}")
                         if isinstance(raw_workload, dict)
                         else f"index-{i}"
                     )

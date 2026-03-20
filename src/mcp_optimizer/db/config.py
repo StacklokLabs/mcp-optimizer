@@ -37,7 +37,7 @@ class DatabaseConfig:
         self.database_url = _normalize_sqlite_url(database_url)
         # Configure connection pool for better concurrency handling
         # SQLite doesn't support connection pooling parameters
-        engine_kwargs = {"echo": False}
+        engine_kwargs: dict[str, Any] = {"echo": False}
         if not self.database_url.startswith("sqlite"):
             engine_kwargs.update(
                 {
