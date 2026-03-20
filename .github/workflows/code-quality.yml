@@ -43,23 +43,14 @@ jobs:
       - name: Generate SBOM
         run: task sbom
 
-      - name: Run Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+      - name: Run Grype vulnerability scan
+        uses: anchore/scan-action@7037fa011853d5a11690026fb85feee79f4c946c # v7.3.2
+        id: grype-scan
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          severity: 'CRITICAL'
-          exit-code: '1'
-          format: 'table'
-      
-      - name: Run Trivy configuration scanner
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
-        with:
-          scan-type: 'config'
-          scan-ref: '.'
-          format: 'table'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
+          path: "."
+          severity-cutoff: "critical"
+          fail-build: true
+          output-format: "table"
 
       - name: Upload Security Reports as Artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
