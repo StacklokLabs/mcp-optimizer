@@ -13,7 +13,7 @@ dependencies = [
     "mcp[cli]>=1.26.0",
     "numpy>=2.4.3",
     "pydantic>=2.12.5",
-    "fastembed>=0.7.4",
+    "fastembed>=0.8.0",
     "sqlalchemy>=2.0.48",
     "structlog>=25.5.0",
     "uvicorn[standard]>=0.42.0",
@@ -44,7 +44,7 @@ examples = [
 ]
 offline-models = [
     "optimum[onnxruntime]>=2.1.0",
-    "fastembed>=0.7.4",
+    "fastembed>=0.8.0",
     "tiktoken>=0.12.0",
 ]
 
