@@ -149,7 +149,7 @@ class K8sClient:
 
         # Extract spec fields
         image = spec.get("image", "")
-        port = spec.get("port", 8080)
+        port = spec.get("proxyPort", 8080)
 
         # Extract status fields
         phase = status.get("phase", "Unknown")

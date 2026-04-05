@@ -57,7 +57,7 @@ PostgreSQL database configuration detected. Ensure that:
 Configuration:
 - Runtime Mode: k8s (Kubernetes mode)
 - Namespace Scope: All Namespaces
-- MCP Port: {{ .Values.mcpserver.port }}
+- MCP Port: {{ .Values.mcpserver.proxyPort }}
 - Image: {{ include "mcp-optimizer.image" . }}
 
 For more information, visit:

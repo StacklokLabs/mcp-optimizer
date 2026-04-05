@@ -38,8 +38,8 @@ spec:
   image: ghcr.io/stackloklabs/mcp-optimizer:0.1.3
   transport: streamable-http
   proxyMode: streamable-http
-  port: 9900
-  targetPort: 9900
+  proxyPort: 9900
+  mcpPort: 9900
   serviceAccount: mcp-optimizer
   permissionProfile:
     name: network

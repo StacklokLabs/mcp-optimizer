@@ -230,8 +230,8 @@ spec:
   image: ghcr.io/stackloklabs/gofetch/server
   transport: streamable-http
   proxyMode: streamable-http
-  port: 8080
-  targetPort: 8080
+  proxyPort: 8080
+  mcpPort: 8080
   permissionProfile:
     name: network
     type: builtin
@@ -266,8 +266,8 @@ spec:
   image: ghcr.io/github/github-mcp-server:v0.18.0
   transport: stdio
   proxyMode: streamable-http
-  port: 8080
-  targetPort: 8080
+  proxyPort: 8080
+  mcpPort: 8080
   permissionProfile:
     name: network
     type: builtin
@@ -561,7 +561,7 @@ MCP Optimizer converts MCPServer CRDs to internal Workload models with the follo
 | `spec.groupRef` (preferred) or `metadata.labels["toolhive.stacklok.dev/group"]` | `group` | Server group (prefers `spec.groupRef`, falls back to label, defaults to "default") |
 | `spec.image` | `package` | Container image |
 | `spec.transport` | `transport_type` | Transport type (stdio, sse, streamable-http) |
-| `spec.port` | `port` | Server port |
+| `spec.proxyPort` | `port` | Proxy port |
 | `spec.proxyMode` | `proxy_mode` | Proxy mode (sse, streamable-http) |
 | `spec.remote` | `remote` | Whether this is a remote server |
 | `status.phase` | `status` | Mapped: Running → running, other → stopped |

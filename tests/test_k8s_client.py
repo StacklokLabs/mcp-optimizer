@@ -16,7 +16,7 @@ def test_mcpserver_to_workload_unknown_transport_type():
         "spec": {
             "image": "test/server:latest",
             "transport": "grpc",
-            "port": 8080,
+            "proxyPort": 8080,
         },
         "status": {
             "phase": "Running",
@@ -45,7 +45,7 @@ def test_mcpserver_to_workload_empty_transport_type():
         "spec": {
             "image": "test/server:latest",
             "transport": "",
-            "port": 8080,
+            "proxyPort": 8080,
         },
         "status": {
             "phase": "Running",
