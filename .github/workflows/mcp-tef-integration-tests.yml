@@ -72,7 +72,7 @@ jobs:
         run: >-
           thv run mcp-optimizer:latest
           --transport streamable-http
-          --proxy-port 8080
+          --proxy-port 18080
           --host 0.0.0.0
           --env TOOLHIVE_HOST=172.17.0.1
           --env TOOLHIVE_PORT=9090
@@ -125,7 +125,7 @@ jobs:
 
           async def check():
               try:
-                  async with streamablehttp_client("http://localhost:8080/mcp") as (read_stream, write_stream, _):
+                  async with streamablehttp_client("http://localhost:18080/mcp") as (read_stream, write_stream, _):
                       async with ClientSession(read_stream, write_stream) as session:
                           await session.initialize()
                           result = await session.call_tool("list_tools", {})
