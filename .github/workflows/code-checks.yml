@@ -11,6 +11,10 @@ jobs:
     name: Code Quality
     uses: ./.github/workflows/code-quality.yml
 
+  security:
+    name: Security
+    uses: ./.github/workflows/security.yml
+
   # Download models once, before image build
   download_models:
     name: Download Models
