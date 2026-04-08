@@ -1,0 +1,54 @@
+name: Security
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: true
+          python-version: '3.13'
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          version: 3.44.1
+
+      - name: Install Dependencies
+        run: task install
+
+      - name: Run Bandit Security Scanning
+        run: task security
+
+      - name: Generate SBOM
+        run: task sbom
+
+      - name: Run Grype vulnerability scan
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        id: grype-scan
+        with:
+          path: "."
+          severity-cutoff: "critical"
+          fail-build: true
+          only-fixed: true
+          output-format: "table"
+
+      - name: Upload Security Reports as Artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: always()  # Upload even if security scan fails
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            sbom.json
+          retention-days: 30

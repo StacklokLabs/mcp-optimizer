@@ -1,5 +1,5 @@
 name: Code Quality
-description: Run code quality checks including linting, type checking, tests, and security scanning.
+description: Run code quality checks including linting, type checking, and tests.
 
 on:
   workflow_call:
@@ -36,28 +36,3 @@ jobs:
       
       - name: Run Tests
         run: task test
-
-      - name: Run Bandit Security Scanning
-        run: task security
-
-      - name: Generate SBOM
-        run: task sbom
-
-      - name: Run Grype vulnerability scan
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        id: grype-scan
-        with:
-          path: "."
-          severity-cutoff: "critical"
-          fail-build: true
-          output-format: "table"
-
-      - name: Upload Security Reports as Artifacts
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        if: always()  # Upload even if security scan fails
-        with:
-          name: security-reports
-          path: |
-            bandit-report.json
-            sbom.json
-          retention-days: 30

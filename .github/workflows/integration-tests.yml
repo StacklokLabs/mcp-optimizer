@@ -63,7 +63,7 @@ jobs:
         run: >-
           thv run mcp-optimizer:latest
           --transport streamable-http
-          --proxy-port 8080
+          --proxy-port 18080
           --env TOOLHIVE_HOST=172.17.0.1
           --env TOOLHIVE_PORT=9090
           --env WORKLOAD_POLLING_INTERVAL=2
@@ -80,8 +80,8 @@ jobs:
           thv ls
           echo "=== Docker containers ==="
           docker ps
-          echo "=== Testing connectivity to port 8080 ==="
-          curl -v http://localhost:8080/mcp || true
+          echo "=== Testing connectivity to port 18080 ==="
+          curl -v http://localhost:18080/mcp || true
 
       - name: Wait for mcp-optimizer to be ready
         run: |
@@ -137,7 +137,7 @@ jobs:
 
           async def check():
               try:
-                  async with streamable_http_client("http://localhost:8080/mcp") as (read_stream, write_stream, _):
+                  async with streamable_http_client("http://localhost:18080/mcp") as (read_stream, write_stream, _):
                       async with ClientSession(read_stream, write_stream) as session:
                           await session.initialize()
                           # Call list_tools tool (not the MCP protocol method)
@@ -179,7 +179,7 @@ jobs:
 
       - name: Run integration tests (with fetch server)
         env:
-          MCP_OPTIMIZER_URL: http://localhost:8080/mcp
+          MCP_OPTIMIZER_URL: http://localhost:18080/mcp
         run: uv run tests/integration_test.py
 
       - name: Delete fetch MCP server
@@ -200,7 +200,7 @@ jobs:
 
       - name: Run integration tests (without fetch server)
         env:
-          MCP_OPTIMIZER_URL: http://localhost:8080/mcp
+          MCP_OPTIMIZER_URL: http://localhost:18080/mcp
           EXPECT_FETCH_ABSENT: "true"
         run: uv run tests/integration_test.py
 
