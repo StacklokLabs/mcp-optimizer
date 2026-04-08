@@ -58,7 +58,8 @@ The following table lists the configurable parameters of the MCP Optimizer chart
 | `mcpserver.image.repository` | Container image repository | `ghcr.io/stacklok/mcp-optimizer` |
 | `mcpserver.image.tag` | Container image tag | `""` (uses chart appVersion) |
 | `mcpserver.transport` | MCP transport protocol | `streamable-http` |
-| `mcpserver.port` | MCP server port | `9900` |
+| `mcpserver.proxyPort` | MCP server proxy port | `9900` |
+| `mcpserver.mcpPort` | MCP server target port | `9900` |
 | `mcpserver.resources.limits.cpu` | CPU limit | `1000m` |
 | `mcpserver.resources.limits.memory` | Memory limit | `2Gi` |
 | `mcpserver.resources.requests.cpu` | CPU request | `250m` |
@@ -119,7 +120,7 @@ Default environment variables (defined in `podTemplateSpec`):
 - `ASYNC_DB_URL` - Generated from `database` configuration
 - `DB_URL` - Generated from `database` configuration
 - `ALLOWED_GROUPS` - Set from `groupFiltering.allowedGroups` if configured
-- `MCP_PORT` - Set by the ToolHive operator from `spec.port`
+- `MCP_PORT` - Set by the ToolHive operator from `spec.proxyPort`
 
 **Adding Custom Environment Variables:**
 Use `mcpserver.env` to add additional env vars that will be merged with the defaults:

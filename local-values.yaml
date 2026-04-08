@@ -8,7 +8,7 @@ mcpserver:
     pullPolicy: Never
   
   transport: stdio
-  port: 9900
+  proxyPort: 9900
   
   # Pod template spec with emptyDir volume for /tmp and env vars in proper env section
   podTemplateSpec:

@@ -51,8 +51,8 @@ spec:
   image: mcp-optimizer:latest
   transport: streamable-http
   proxyMode: streamable-http
-  port: 9900
-  targetPort: 9900
+  proxyPort: 9900
+  mcpPort: 9900
   serviceAccount: mcp-optimizer
   permissionProfile:
     name: network

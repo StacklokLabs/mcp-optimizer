@@ -23,9 +23,9 @@ spec:
   proxyMode: streamable-http
   
   # Port configuration
-  port: {{ .Values.mcpserver.port }}
-  {{- if .Values.mcpserver.targetPort }}
-  targetPort: {{ .Values.mcpserver.targetPort }}
+  proxyPort: {{ .Values.mcpserver.proxyPort }}
+  {{- if .Values.mcpserver.mcpPort }}
+  mcpPort: {{ .Values.mcpserver.mcpPort }}
   {{- end }}
   
   # Service account for Kubernetes API access

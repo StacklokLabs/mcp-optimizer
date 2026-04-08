@@ -37,5 +37,5 @@ spec:
               service:
                 name: mcp-mcp-optimizer-proxy
                 port:
-                  number: 8080
+                  number: 9900
 

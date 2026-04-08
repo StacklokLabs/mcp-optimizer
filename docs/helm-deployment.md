@@ -242,7 +242,7 @@ metadata:
 spec:
   image: docker.io/mcp/fetch
   transport: stdio
-  port: 8080
+  proxyPort: 8080
 EOF
 
 # Wait a minute for polling, then check mcp-optimizer logs
