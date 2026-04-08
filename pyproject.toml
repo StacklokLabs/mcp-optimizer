@@ -34,7 +34,7 @@ dev = [
 ]
 security = [
     "bandit[toml]>=1.9.4",
-    "cyclonedx-bom>=7.2.2",
+    "cyclonedx-bom>=7.3.0",
 ]
 examples = [
     "anthropic>=0.86.0",
