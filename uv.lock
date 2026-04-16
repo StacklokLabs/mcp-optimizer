@@ -2117,7 +2117,7 @@ examples = [
     { name = "anthropic", specifier = ">=0.95.0" },
     { name = "matplotlib", specifier = ">=3.10.8" },
     { name = "pydantic-ai", specifier = ">=1.57.0" },
-    { name = "rich", specifier = ">=14.3.4" },
+    { name = "rich", specifier = ">=15.0.0" },
 ]
 offline-models = [
     { name = "fastembed", specifier = ">=0.8.0" },
