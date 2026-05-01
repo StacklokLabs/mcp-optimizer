@@ -38,7 +38,7 @@ security = [
 ]
 examples = [
     "anthropic>=0.97.0",
-    "pydantic-ai>=1.57.0",
+    "pydantic-ai>=1.89.1",
     "matplotlib>=3.10.9",
     "rich>=15.0.0",
 ]
