@@ -1,3 +1,12 @@
+# ⚠️ ARCHIVED ⚠️
+
+The MCP Optimizer was an experimental project and is no longer maintained as a standalone repo. Its functionality has been folded into ToolHive's vMCP, which is the path forward for both Kubernetes and local use cases.
+
+- **Kubernetes:** [Run the optimizer with vMCP in Kubernetes](https://docs.stacklok.com/toolhive/guides-vmcp/optimizer)
+- **Local (CLI):** [Enable the optimizer in quick mode](https://docs.stacklok.com/toolhive/guides-vmcp/local-cli#enable-the-optimizer-in-quick-mode)
+
+---
+
 # ToolHive MCP Optimizer
 
 An intelligent intermediary MCP server that provides semantic tool discovery,
